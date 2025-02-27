@@ -1,0 +1,17 @@
+[package]
+name = "newer-type"
+authors = ["Yasuo Ozu <yasuo@ozu.email>"]
+version = "0.1.0"
+repository = "https://github.com/yasuo-ozu/newer-type"
+edition = "2021"
+license = "MIT"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+newer-type-macro = { path = "macro", version = "0.1.0" }
+
+[workspace]
+members = [".", "macro", "mock"]
+resolver = "2"

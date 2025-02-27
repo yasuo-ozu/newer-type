@@ -1,0 +1,4 @@
+wrap_comments = true
+edition = "2021"
+reorder_impl_items = true
+blank_lines_upper_bound = 1
