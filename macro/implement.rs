@@ -180,40 +180,52 @@ pub trait Implement {
     fn generics(&self) -> &Generics;
 }
 
-struct CollectImplementors(Vec<Implementor>);
-
-const _: () = {
-    use syn::visit::Visit;
-
-    impl TargetDef {
-        fn collect_implementors(&self) -> Vec<Implementor> {
-            let mut this = CollectImplementors(Vec::new());
-            match self {
-                TargetDef::Enum(item_enum) => this.visit_item_enum(item_enum),
-                TargetDef::Struct(item_struct) => this.visit_item_struct(item_struct),
+impl TargetDef {
+    fn collect_implementors(&mut self) -> Vec<Implementor> {
+        let mut ret = Vec::new();
+        let mut proceed_field = |field: &mut Field| {
+            field.attrs = field
+                .attrs
+                .clone()
+                .into_iter()
+                .filter(|attr| {
+                    if let Some(arg) = Argument::from_attr(&attr).unwrap_or_abort() {
+                        ret.extend(arg.implementors);
+                        false
+                    } else {
+                        true
+                    }
+                })
+                .collect();
+        };
+        match self {
+            TargetDef::Enum(item_enum) => {
+                for variant in item_enum.variants.iter_mut() {
+                    for field in variant.fields.iter_mut() {
+                        proceed_field(field);
+                    }
+                }
             }
-            this.0
-        }
-    }
-
-    impl Visit<'_> for CollectImplementors {
-        fn visit_attribute(&mut self, i: &Attribute) {
-            if let Some(arg) = Argument::from_attr(i).unwrap_or_abort() {
-                self.0.extend(arg.implementors)
+            TargetDef::Struct(item_struct) => {
+                for field in item_struct.fields.iter_mut() {
+                    proceed_field(field);
+                }
             }
         }
+        ret
     }
-};
+}
 
 pub fn implement(arg: &Argument, target_def: &TargetDef) -> TokenStream {
-    let imp: TokenStream = target_def
+    let mut copied_target_def = target_def.clone();
+    let imp: TokenStream = copied_target_def
         .collect_implementors()
         .into_iter()
         .chain(arg.implementors.iter().cloned())
         .map(|implr| implr.emit_impl(target_def))
         .collect();
     quote! {
-        #target_def
+        #copied_target_def
         #imp
     }
 }
