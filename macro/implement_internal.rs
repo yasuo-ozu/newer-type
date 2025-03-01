@@ -359,6 +359,20 @@ trait EmitImpl {
             const #{&input.ident} : #{&input.ty} = <#ptyp as #trait_>::#{&input.ident};
         }
     }
+    fn emit_trait_ty(
+        &self,
+        trait_: &TokenStream,
+        implementor: &Implementor,
+        input: &TraitItemType,
+    ) -> TokenStream {
+        let ptyp = self.get_predicate_type(implementor).unwrap_or_else(|| {
+            abort!(&implementor.path, "cannot implement this trait to enum"; note = input.span() => "because the trait has associated types");
+        });
+        let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+        quote! {
+            type #{&input.ident} #impl_generics = <#ptyp as #trait_>::#{&input.ident} #ty_generics #where_clause;
+        }
+    }
     fn emit_trait_fn(
         &self,
         trait_: &TokenStream,
@@ -517,10 +531,12 @@ trait EmitImpl {
                     #(if let TraitItem::Fn(tfn) = item) {
                         #{self.emit_trait_fn(&quote!(#path #trait_ty_generics), &input.implementor, tfn.clone(), nonce)}
                     }
+                    #(if let TraitItem::Type(ttyp) = item) {
+                        #{self.emit_trait_ty(&quote!(#path #trait_ty_generics), &input.implementor, ttyp)}
+                    }
                     #(if let TraitItem::Const(tconst) = item) {
                         #{self.emit_trait_const(&quote!(#path #trait_ty_generics), &input.implementor, tconst)}
                     }
-                    // TODO: other trait items
                 }
             }
         }
