@@ -150,10 +150,11 @@ pub enum TargetDef {
 
 impl syn::parse::Parse for TargetDef {
     fn parse(input: parse::ParseStream) -> Result<Self> {
-        input
-            .parse()
-            .map(Self::Enum)
-            .or_else(|_| input.parse().map(Self::Struct))
+        if input.fork().parse::<ItemEnum>().is_ok() {
+            Ok(Self::Enum(input.parse()?))
+        } else {
+            Ok(Self::Struct(input.parse()?))
+        }
     }
 }
 

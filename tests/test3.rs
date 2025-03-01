@@ -135,7 +135,7 @@ impl<'a, A> FreeParamTrait<'a, A, u32> for BasicType
 where
     A: Clone,
 {
-    fn complex_method(&self, input: &'a A) -> u32 {
+    fn complex_method(&self, _input: &'a A) -> u32 {
         self.0 as u32 + 1
     }
 }
@@ -207,50 +207,29 @@ fn test_function_pointer_trait() {
     assert_eq!(instance.apply_fn(|x| x * 2), 10);
 }
 
-// // 3. 関連型を持つトレイト
-// #[target]
-// trait AssociatedTypeTrait {
-//     type Output;
-//     fn compute(&self) -> Self::Output;
-// }
-//
-// impl AssociatedTypeTrait for BasicType {
-//     type Output = i32;
-//
-//     fn compute(&self) -> Self::Output {
-//         self.0 * 2
-//     }
-// }
-//
-// #[implement(AssociatedTypeTrait)]
-// struct AssociatedTypeNewType(BasicType);
-//
-// #[test]
-// fn test_associated_type_trait() {
-//     let instance = AssociatedTypeNewType(BasicType(6));
-//     assert_eq!(instance.compute(), 12);
-// }
+// 3. 関連型を持つトレイト
+#[target]
+trait AssociatedTypeTrait {
+    type Output;
+    fn compute(&self) -> Self::Output;
+}
 
-// // 4. `&self` を返すトレイト
-// #[target]
-// trait SelfReturningTrait {
-//     fn as_self(&self) -> &Self;
-// }
-//
-// impl SelfReturningTrait for BasicType {
-//     fn as_self(&self) -> &Self {
-//         self
-//     }
-// }
-//
-// #[implement(SelfReturningTrait)]
-// struct SelfReturningNewType(BasicType);
-//
-// #[test]
-// fn test_self_returning_trait() {
-//     let instance = SelfReturningNewType(BasicType(10));
-//     assert_eq!(instance.as_self().get_number(), 10);
-// }
+impl AssociatedTypeTrait for BasicType {
+    type Output = i32;
+
+    fn compute(&self) -> Self::Output {
+        self.0 * 2
+    }
+}
+
+#[implement(AssociatedTypeTrait)]
+struct AssociatedTypeNewType(BasicType);
+
+#[test]
+fn test_associated_type_trait() {
+    let instance = AssociatedTypeNewType(BasicType(6));
+    assert_eq!(instance.compute(), 12);
+}
 
 // 5. `&mut self` を扱うトレイト
 #[target]
@@ -273,22 +252,6 @@ fn test_mutating_trait() {
     instance.increment();
     assert_eq!(instance.0 .0, 11);
 }
-
-// // 6. 非同期 (`async fn`) を持つトレイト
-// #[target]
-// trait AsyncTrait {
-//     async fn async_method(&self) -> i32;
-// }
-//
-// #[implement(AsyncTrait)]
-// struct AsyncNewType(BasicType);
-//
-// #[test]
-// fn test_async_trait() {
-//     let instance = AsyncNewType(BasicType(20));
-//     let result = futures::executor::block_on(instance.async_method());
-//     assert_eq!(result, 20);
-// }
 
 // 7. 複数の型制約を持つトレイト
 #[target]

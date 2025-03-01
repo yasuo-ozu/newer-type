@@ -26,6 +26,7 @@ fn test_simple_newtype() {
 
 // 2. フィールドの一部だけがトレイトを実装するパターン
 #[implement]
+#[allow(dead_code)]
 struct ComplexNewType {
     field1: usize,
     #[implement(MyTrait)]
@@ -113,6 +114,7 @@ fn test_nested_newtype() {
 
 // 7. Enum に対する `#[implement]`（すべてのバリアントが MyTrait を実装）
 #[implement(MyTrait)]
+#[allow(dead_code)]
 enum MyEnum {
     Variant1(MyExistingType),
     Variant2(MyExistingType),
