@@ -1,20 +1,10 @@
 use crate::ResultExt;
 use derive_syn_parse::Parse;
 use proc_macro2::TokenStream;
+use proc_macro_error::abort;
 use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
 use syn::*;
 use template_quote::{quote, ToTokens};
-
-fn check_ident(name: &'static str) -> impl Fn(parse::ParseStream) -> bool {
-    move |input| match input.fork().parse::<Ident>() {
-        Ok(ident) if ident == name => {
-            input.parse::<Ident>().unwrap();
-            true
-        }
-        _ => false,
-    }
-}
 
 pub struct Output {
     pub implementor: Implementor,
@@ -96,11 +86,22 @@ impl syn::parse::Parse for Implementor {
         } else {
             None
         };
-        let path = input.parse()?;
+        let path: Path = input.parse()?;
+        path.segments.last().map(|seg| match &seg.arguments {
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+                args.iter().for_each(|arg| match arg {
+                    GenericArgument::AssocType(_)
+                    | GenericArgument::AssocConst(_)
+                    | GenericArgument::Constraint(_) => abort!(arg, "Not supported"),
+                    _ => (),
+                });
+            }
+            _ => (),
+        });
         if let Some(generics) = &mut generics {
             generics.1.where_clause = input.parse::<Option<WhereClause>>()?;
         }
-        if input.is_empty() {
+        if generics.is_none() || input.is_empty() {
             Ok(Implementor { generics, path })
         } else {
             Err(input.error("Bad trailing tokens"))
@@ -163,21 +164,6 @@ impl template_quote::ToTokens for TargetDef {
             TargetDef::Struct(item_struct) => item_struct.to_tokens(tokens),
         }
     }
-}
-
-pub trait Implement {
-    fn implement(&self, arg: Argument) -> TokenStream;
-
-    fn collect_implementors(&self) -> Vec<Implementor>;
-
-    fn emit_impl(
-        &self,
-        self_val: &Expr,
-        base_impls: impl IntoIterator<Item = (Implementor, Expr)>,
-    ) -> TokenStream;
-
-    fn ident(&self) -> &Ident;
-    fn generics(&self) -> &Generics;
 }
 
 impl TargetDef {

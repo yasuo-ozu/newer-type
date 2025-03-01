@@ -6,7 +6,7 @@ pub mod traits {
     #[target]
     pub trait IntoIterator {
         type Item;
-        type IntoIter: Iterator<Item = Self::Item>;
+        type IntoIter: ::core::iter::Iterator<Item = Self::Item>;
         fn into_iter(self) -> Self::IntoIter;
     }
 
@@ -14,13 +14,13 @@ pub mod traits {
     pub trait Extend<A> {
         fn extend<T>(&mut self, iter: T)
         where
-            T: IntoIterator<Item = A>;
+            T: ::core::iter::IntoIterator<Item = A>;
     }
 
     #[target]
-    trait Iterator {
+    pub trait Iterator {
         type Item;
-        fn next(&mut self) -> Option<Self::Item>;
+        fn next(&mut self) -> ::core::option::Option<Self::Item>;
         // fn size_hint(&self) -> (usize, Option<usize>);
         // fn count(self) -> usize
         //    where Self: Sized;
@@ -30,16 +30,16 @@ pub mod traits {
     }
 
     #[target]
-    pub trait FusedIterator: Iterator {}
+    pub trait FusedIterator: ::core::iter::Iterator {}
 
     #[target]
-    pub trait ExactSizeIterator: Iterator {
+    pub trait ExactSizeIterator: ::core::iter::Iterator {
         // fn len(&self) -> usize;
     }
 
     #[target]
-    pub trait DoubleEndedIterator: Iterator {
-        fn next_back(&mut self) -> Option<Self::Item>;
+    pub trait DoubleEndedIterator: ::core::iter::Iterator {
+        fn next_back(&mut self) -> ::core::option::Option<Self::Item>;
 
         // fn nth_back(&mut self, n: usize) -> Option<Self::Item>;
         // fn try_rfold<B, F, R>(&mut self, init: B, f: F) -> R
@@ -57,8 +57,8 @@ pub mod traits {
     // std::alloc
     #[target]
     pub unsafe trait GlobalAlloc {
-        unsafe fn alloc(&self, layout: std::alloc::Layout) -> *mut u8;
-        unsafe fn dealloc(&self, ptr: *mut u8, layout: std::alloc::Layout);
+        unsafe fn alloc(&self, layout: ::std::alloc::Layout) -> *mut ::core::primitive::u8;
+        unsafe fn dealloc(&self, ptr: *mut ::core::primitive::u8, layout: ::std::alloc::Layout);
         // unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8;
         // unsafe fn realloc(
         //     &self,
