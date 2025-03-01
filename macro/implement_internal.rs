@@ -346,6 +346,19 @@ fn update_pat_names(pat: &mut Pat, f: &mut impl FnMut(Span) -> Ident) {
 }
 
 trait EmitImpl {
+    fn emit_trait_const(
+        &self,
+        trait_: &TokenStream,
+        implementor: &Implementor,
+        input: &TraitItemConst,
+    ) -> TokenStream {
+        let ptyp = self.get_predicate_type(implementor).unwrap_or_else(|| {
+            abort!(&implementor.path, "cannot implement this trait to enum"; note = input.span() => "because the trait has associated const");
+        });
+        quote! {
+            const #{&input.ident} : #{&input.ty} = <#ptyp as #trait_>::#{&input.ident};
+        }
+    }
     fn emit_trait_fn(
         &self,
         trait_: &TokenStream,
@@ -409,6 +422,8 @@ trait EmitImpl {
             }
         }
     }
+
+    fn get_predicate_type(&self, implementor: &Implementor) -> Option<Type>;
 
     fn emit_impl(&self, input: &Input) -> TokenStream {
         let mut path = input
@@ -502,6 +517,9 @@ trait EmitImpl {
                     #(if let TraitItem::Fn(tfn) = item) {
                         #{self.emit_trait_fn(&quote!(#path #trait_ty_generics), &input.implementor, tfn.clone(), nonce)}
                     }
+                    #(if let TraitItem::Const(tconst) = item) {
+                        #{self.emit_trait_const(&quote!(#path #trait_ty_generics), &input.implementor, tconst)}
+                    }
                     // TODO: other trait items
                 }
             }
@@ -560,6 +578,10 @@ impl EmitImpl for ItemEnum {
     fn ident(&self) -> &Ident {
         &self.ident
     }
+
+    fn get_predicate_type(&self, _implementor: &Implementor) -> Option<Type> {
+        None
+    }
 }
 
 impl EmitImpl for ItemStruct {
@@ -594,6 +616,10 @@ impl EmitImpl for ItemStruct {
 
     fn ident(&self) -> &Ident {
         &self.ident
+    }
+
+    fn get_predicate_type(&self, implementor: &Implementor) -> Option<Type> {
+        Some(find_pred_field(implementor, &self.fields).1.ty.clone())
     }
 }
 
