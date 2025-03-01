@@ -254,9 +254,8 @@ fn check_is_self_ty(ty: &Type) -> Option<TokenStream> {
 
 fn find_pred_param<'a>(
     args: impl IntoIterator<Item = &'a FnArg>,
-) -> Option<(usize, Ident, TokenStream)> {
-    let mut preds = args
-        .into_iter()
+) -> Vec<(usize, Ident, TokenStream)> {
+    args.into_iter()
         .enumerate()
         .filter_map(|(i, arg)| match arg.clone() {
             FnArg::Receiver(Receiver {
@@ -290,15 +289,8 @@ fn find_pred_param<'a>(
                     None
                 }
             }
-        });
-    if let Some((i, pred_ident, pred_ref_tokens)) = preds.next() {
-        if let Some((_, reason, _)) = preds.next() {
-            abort!(reason, "multiple `Self` type is not supported"; hint = pred_ident.span() => "first `Self` type is here");
-        }
-        Some((i, pred_ident, pred_ref_tokens))
-    } else {
-        None
-    }
+        })
+        .collect()
 }
 
 fn update_pat_names(pat: &mut Pat, f: &mut impl FnMut(Span) -> Ident) {
@@ -393,36 +385,39 @@ trait EmitImpl {
             }
         }
         let (impl_generics, _, where_clause) = input.sig.generics.split_for_impl();
-        let (pred_ix, pred_ident, pred_ref_tokens) = find_pred_param(&input.sig.inputs)
-            .unwrap_or_else(|| abort!(&input.sig.inputs, "no `Self` type is found"; hint = "exact one `self` type is required in parameters"));
+        // let (pred_ix, pred_ident, pred_ref_tokens) =
+        // find_pred_param(&input.sig.inputs)
+        let preds = find_pred_param(&input.sig.inputs);
+        if preds.len() == 0 {
+            abort!(&input.sig.inputs, "no `Self` type is found"; hint = "exact one `self` type is required in parameters");
+        } else if preds.len() > 1 && self.get_predicate_type(implementor).is_none() {
+            // self is enum
+            abort!(&preds[1].1, "multiple `Self` type is not supported"; hint = preds[0].1.span() => "first `Self` type is here");
+        }
         if let ReturnType::Type(_, ty) = &input.sig.output {
             if let Some(reason) = check_has_self_ty(ty.as_ref()) {
                 abort!(reason, "`Self` type is not allowed in return position");
             }
         }
-        let body = self.emit_body(
-            &parse_quote!(#pred_ident),
-            &pred_ref_tokens,
-            implementor,
-            |pred_param| {
-                quote! {
-                    <_ as #trait_> :: #{&input.sig.ident} (
-                        #(for (i, param) in input.sig.inputs.iter().enumerate()), {
-                            #(if i == pred_ix) {
-                                #pred_param
-                            } #(else) {
-                                #(if let FnArg::Receiver(Receiver{self_token, ..}) = param) {
-                                    #self_token
-                                }
-                                #(if let FnArg::Typed(PatType {pat, ..}) = param) {
-                                    #pat
-                                }
+        let body = self.emit_body(&preds, implementor, |pred_params| {
+            quote! {
+                <_ as #trait_> :: #{&input.sig.ident} (
+                    #(for (i, param) in input.sig.inputs.iter().enumerate()), {
+                        #(if let Some((_, pred_param)) = preds.iter().zip(pred_params).filter(|((n, _, _), _)| &i == n).next()) {
+                            #pred_param
+                        }
+                        #(else) {
+                            #(if let FnArg::Receiver(Receiver{self_token, ..}) = param) {
+                                #self_token
+                            }
+                            #(if let FnArg::Typed(PatType {pat, ..}) = param) {
+                                #pat
                             }
                         }
-                    )
-                }
-            },
-        );
+                    }
+                )
+            }
+        });
         quote! {
             #{&input.sig.constness}
             #{&input.sig.asyncness}
@@ -548,24 +543,22 @@ trait EmitImpl {
 
     fn emit_body(
         &self,
-        self_val: &Expr,
-        ref_tokens: &TokenStream,
+        preds: &[(usize, Ident, TokenStream)],
         implementor: &Implementor,
-        f: impl FnMut(&Expr) -> TokenStream,
+        f: impl FnMut(&[Ident]) -> TokenStream,
     ) -> TokenStream;
 }
 
 impl EmitImpl for ItemEnum {
     fn emit_body(
         &self,
-        self_val: &Expr,
-        _ref_tokens: &TokenStream,
+        preds: &[(usize, Ident, TokenStream)],
         implementor: &Implementor,
-        mut f: impl FnMut(&Expr) -> TokenStream,
+        mut f: impl FnMut(&[Ident]) -> TokenStream,
     ) -> TokenStream {
         let pred_param = Ident::new("__newer_type_pred_param", Span::call_site());
         quote! {
-            match #self_val {
+            match #{&preds[0].1} {
                 #(for variant in &self.variants) {
                     #(let (n, _) = find_pred_field(implementor, &variant.fields)) {
                         Self::#{&variant.ident}
@@ -580,7 +573,10 @@ impl EmitImpl for ItemEnum {
                                 #(if i == n) { #pred_param }
                                 #(else) {_}
                             }
-                        )} => {#{ f(&parse_quote!(#pred_param)) }}
+                        )} => {#{
+                            let l = [pred_param.clone()];
+                            f(&l)
+                        }}
                     }
                 }
             }
@@ -603,26 +599,33 @@ impl EmitImpl for ItemEnum {
 impl EmitImpl for ItemStruct {
     fn emit_body(
         &self,
-        self_val: &Expr,
-        _ref_tokens: &TokenStream,
+        preds: &[(usize, Ident, TokenStream)],
         implementor: &Implementor,
-        mut f: impl FnMut(&Expr) -> TokenStream,
+        mut f: impl FnMut(&[Ident]) -> TokenStream,
     ) -> TokenStream {
-        let pred_param = Ident::new("__newer_type_pred_param", Span::call_site());
+        let pred_params = (0..preds.len())
+            .map(|i| Ident::new(&format!("__newer_type_pred_param_{}", i), Span::call_site()))
+            .collect::<Vec<_>>();
         let (n, pred_field) = find_pred_field(implementor, &self.fields);
         quote! {
             #(if let Fields::Named(_) = &self.fields) {
-                let Self { #{&pred_field.ident}: #pred_param, ..} = #self_val;
+                #(for ((_, pred_ident, _), pred_param) in preds.iter().zip(&pred_params)) {
+                    let Self {#{&pred_field.ident}: #pred_param, ..} = #pred_ident;
+                }
             }
             #(if let Fields::Unnamed(_) = &self.fields) {
-                let Self (
-                    #(for (i, _) in self.fields.iter().enumerate()), {
-                        #(if i == n) { #pred_param }
-                        #(else) { _ }
-                    }
-                ) = #self_val;
+                #(for ((_, pred_ident, _), pred_param) in preds.iter().zip(&pred_params)) {
+                    let Self (
+                        #(for (i, _) in self.fields.iter().enumerate()), {
+                            #(if i == n) {
+                                #pred_param
+                            }
+                            #(else) { _ }
+                        }
+                    ) = #pred_ident;
+                }
             }
-            #{ f(&parse_quote!(#pred_param)) }
+            #{ f(&pred_params) }
         }
     }
 
