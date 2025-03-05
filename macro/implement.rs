@@ -177,7 +177,11 @@ impl TargetDef {
                 .into_iter()
                 .filter(|attr| {
                     if let Some(arg) = Argument::from_attr(&attr).unwrap_or_abort() {
-                        ret.extend(arg.implementors);
+                        for implem in arg.implementors {
+                            if ret.iter().find(|a| a == &&implem).is_none() {
+                                ret.push(implem);
+                            }
+                        }
                         false
                     } else {
                         true
