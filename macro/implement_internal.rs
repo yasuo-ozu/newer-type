@@ -1,6 +1,7 @@
 use crate::implement::{
     Argument as ImplementArgument, Implementor, Output as ImplementOutput, TargetDef,
 };
+use crate::ResultExt;
 use proc_macro2::{Span, TokenStream};
 use proc_macro_error::abort;
 use std::collections::HashMap;
@@ -10,14 +11,17 @@ use syn::visit::Visit;
 use syn::visit_mut::VisitMut;
 use syn::*;
 use template_quote::quote;
+use type_leak::Referrer;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Input {
     pub implementor: Implementor,
     pub target_def: TargetDef,
     pub trait_def: ItemTrait,
     pub alternative: Option<Path>,
     pub newer_type: Path,
+    pub referrer: Referrer,
+    pub nonce: u64,
 }
 
 impl syn::parse::Parse for Input {
@@ -37,6 +41,10 @@ impl syn::parse::Parse for Input {
         };
         input.parse::<Token![,]>()?;
         let newer_type = input.parse()?;
+        input.parse::<Token![,]>()?;
+        let referrer = input.parse()?;
+        input.parse::<Token![,]>()?;
+        let nonce: LitInt = input.parse()?;
         let _ = input.parse::<Token![,]>();
         if input.is_empty() {
             Ok(Self {
@@ -45,6 +53,8 @@ impl syn::parse::Parse for Input {
                 trait_def,
                 alternative,
                 newer_type,
+                referrer,
+                nonce: nonce.base10_parse()?,
             })
         } else {
             Err(input.error("Bad trailing tokens"))
@@ -62,6 +72,10 @@ impl template_quote::ToTokens for Input {
         self.trait_def.to_tokens(tokens);
         <Token![,]>::default().to_tokens(tokens);
         self.alternative.to_tokens(tokens);
+        <Token![,]>::default().to_tokens(tokens);
+        self.referrer.to_tokens(tokens);
+        <Token![,]>::default().to_tokens(tokens);
+        tokens.extend(quote! {#{self.nonce}})
     }
 }
 
