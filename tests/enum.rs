@@ -1,8 +1,10 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
+struct Implementor<T>(core::marker::PhantomData<T>, core::convert::Infallible);
+
 // 1. Enum に対して `#[implement]` を適用する基本例
-#[target]
+#[target(implementor = Implementor)]
 trait BasicEnumTrait {
     fn value(&self) -> i32;
 }
@@ -35,7 +37,7 @@ fn test_basic_enum_trait() {
 }
 
 // 2. 名前付きフィールドを持つ Enum のトレイト実装
-#[target]
+#[target(implementor = Implementor)]
 trait NamedEnumTrait {
     fn sum(&self) -> i32;
 }
@@ -74,7 +76,7 @@ fn test_named_enum_trait() {
 }
 
 // 3. ジェネリクスを含む Enum のトレイト実装
-#[target]
+#[target(implementor = Implementor)]
 trait GenericEnumTrait<T> {
     fn describe(&self) -> String;
 }
@@ -107,7 +109,7 @@ fn test_generic_enum_trait() {
 }
 
 // 4. 複雑なフィールドを持つ Enum のトレイト実装
-#[target]
+#[target(implementor = Implementor)]
 trait ComplexEnumTrait {
     fn compute(&self) -> i32;
 }
@@ -148,7 +150,7 @@ fn test_complex_enum_trait() {
     }
 }
 // 5. ネストした型を持つ Enum のトレイト実装
-#[target]
+#[target(implementor = Implementor)]
 trait NestedEnumTrait {
     fn nested_value(&self) -> i32;
 }
@@ -174,7 +176,7 @@ fn test_nested_enum_trait() {
 }
 
 // 6. 複数の `#[implement]` を持つ Enum のトレイト実装
-#[target]
+#[target(implementor = Implementor)]
 trait MultiImplementTrait {
     fn double(&self) -> i32;
 }

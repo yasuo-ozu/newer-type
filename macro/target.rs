@@ -7,23 +7,27 @@ use type_leak::{Leaker, NotInternableError};
 pub struct Argument {
     alternative: Option<Path>,
     newer_type: Path,
+    implementor: Path,
 }
 
 impl syn::parse::Parse for Argument {
     fn parse(input: parse::ParseStream) -> Result<Self> {
-        let mut this = Argument {
-            alternative: None,
-            newer_type: parse_quote!(::newer_type),
-        };
+        let mut alternative = None;
+        let mut newer_type = parse_quote!(::newer_type);
+        let mut implementor: Option<Path> = None;
+
         while !input.is_empty() {
             let ident = input.parse::<Ident>()?;
             input.parse::<token::Eq>()?;
             match ident.to_string().as_str() {
                 "alternative" => {
-                    this.alternative = Some(input.parse()?);
+                    alternative = Some(input.parse()?);
                 }
                 "newer_type" => {
-                    this.newer_type = input.parse()?;
+                    newer_type = input.parse()?;
+                }
+                "implementor" => {
+                    implementor = Some(input.parse()?);
                 }
                 _ => {
                     return Err(Error::new_spanned(&ident, "Unsupported argument"));
@@ -34,22 +38,53 @@ impl syn::parse::Parse for Argument {
             }
             input.parse::<Token![,]>()?;
         }
-        Ok(this)
+        if let Some(implementor) = &implementor {
+            if let Some(last_seg) = implementor.segments.iter().last() {
+                if !last_seg.arguments.is_none() {
+                    abort!(&last_seg.arguments, "Cannot specify arguments")
+                }
+            }
+        }
+        Ok(Argument {
+            alternative,
+            newer_type,
+            implementor: implementor
+                .unwrap_or_else(|| abort!(Span::call_site(), "Argument 'implementor' is required")),
+        })
     }
 }
 
 pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
+    let mut input_cloned = input.clone();
+    for item in input_cloned.items.iter_mut() {
+        if let TraitItem::Fn(trait_item_fn) = item {
+            trait_item_fn.default = None;
+            trait_item_fn.semi_token = Some(Token![;](Span::call_site()));
+        }
+    }
     let nonce = crate::random();
     let crate_path = &arg.newer_type;
-    let alternate = arg
+    let trait_ident = &input.ident;
+    let alternative = arg
         .alternative
         .clone()
-        .unwrap_or(parse_quote!(#crate_path::Alternate));
-    let mut leaker = Leaker::from_trait(&input, alternate.clone())
-        .unwrap_or_else(|NotInternableError(span)| abort!(span, "Not supported"));
+        .unwrap_or(parse_quote!(#trait_ident));
+    let implementor = arg.implementor;
+    let mut leaker = Leaker::from_trait(
+        &input_cloned,
+        Box::new(move |args| {
+            if let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) = args
+            {
+                let ty = type_leak::encode_generics_to_ty(&args);
+                parse_quote!(#implementor <#ty>)
+            } else {
+                panic!()
+            }
+        }),
+    )
+    .unwrap_or_else(|NotInternableError(span)| abort!(span, "Not supported"));
     leaker.reduce_roots();
-    let (item_impls, referrer) =
-        leaker.finish(|n| parse_quote!(#crate_path::Repeater<#nonce, #n>), None);
+    let (item_impls, referrer) = leaker.finish(|n| parse_quote!(#crate_path::Repeater<#nonce, #n>));
 
     let temporal_mac_name =
         Ident::new(&format!("__newer_type_macro__{}", nonce), Span::call_site());
@@ -60,7 +95,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
                 #{&arg.newer_type}::__implement_internal! {
                     /* Implementor */ ($($t)*)
                     /* trait_def */ #input,
-                    /* alternative */ #alternate,
+                    /* alternative */ #alternative,
                     /* newer_type */ #crate_path,
                     /* referrer */ #referrer,
                     /* nonce */ #nonce

@@ -11,23 +11,25 @@ pub trait Repeater<const TRAIT_NUM: u64, const N: usize> {
 pub mod traits {
     use super::*;
 
+    pub struct Implementor<T>(core::marker::PhantomData<T>, core::convert::Infallible);
+
     macro_rules! emit_traits {
         () => {
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::iter::IntoIterator, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait IntoIterator {
                 type Item;
                 type IntoIter: ::core::iter::Iterator<Item = Self::Item>;
                 fn into_iter(self) -> Self::IntoIter;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::iter::Extend, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait Extend<A> {
                 fn extend<T>(&mut self, iter: T)
                 where
                     T: ::core::iter::IntoIterator<Item = A>;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::iter::Iterator, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait Iterator {
                 type Item;
                 fn next(&mut self) -> ::core::option::Option<Self::Item>;
@@ -39,15 +41,15 @@ pub mod traits {
                 // fn nth(&mut self, n: usize) -> Option<Self::Item>;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::iter::FusedIterator, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait FusedIterator: ::core::iter::Iterator {}
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::iter::ExactSizeIterator, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait ExactSizeIterator: ::core::iter::Iterator {
                 // fn len(&self) -> usize;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::iter::DoubleEndedIterator, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait DoubleEndedIterator: ::core::iter::Iterator {
                 fn next_back(&mut self) -> ::core::option::Option<Self::Item>;
 
@@ -65,7 +67,7 @@ pub mod traits {
             }
 
             // std::alloc
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::alloc::GlobalAlloc, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub unsafe trait GlobalAlloc {
                 unsafe fn alloc(&self, layout: ::std::alloc::Layout) -> *mut ::core::primitive::u8;
                 unsafe fn dealloc(
@@ -83,7 +85,7 @@ pub mod traits {
             }
 
             // std::borrow
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::borrow::Borrow, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait Borrow<Borrowed>
             where
                 Borrowed: ?::core::marker::Sized,
@@ -92,7 +94,7 @@ pub mod traits {
                 fn borrow(&self) -> &Borrowed;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::borrow::BorrowMut, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait BorrowMut<Borrowed>: ::core::borrow::Borrow<Borrowed>
             where
                 Borrowed: ?::core::marker::Sized,
@@ -100,18 +102,15 @@ pub mod traits {
                 fn borrow_mut(&mut self) -> &mut Borrowed;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::borrow::ToOwned, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait ToOwned {
                 type Owned: ::core::borrow::Borrow<Self>;
                 fn to_owned(&self) -> Self::Owned;
                 // fn clone_into(&self, target: &mut Self::Owned);
             }
 
-            #[doc(hidden)]
-            pub struct PartialEqTy<Rhs>(core::convert::Infallible, core::marker::PhantomData<Rhs>);
-
             // std::cmp
-            #[target(alternative = $crate::traits::PartialEqTy, newer_type = $crate)]
+            #[target(alternative = ::core::cmp::PartialEq, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait PartialEq<Rhs = Self>
             where
                 Rhs: ?::core::marker::Sized,
@@ -120,13 +119,10 @@ pub mod traits {
                 // fn ne(&self, other: &Rhs) -> bool;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::cmp::Eq, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait Eq: ::core::cmp::PartialEq {}
 
-            #[doc(hidden)]
-            pub struct PartialOrdTy<Rhs>(core::convert::Infallible, core::marker::PhantomData<Rhs>);
-
-            #[target(alternative = $crate::traits::PartialOrdTy, newer_type = $crate)]
+            #[target(alternative = ::core::cmp::PartialOrd, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait PartialOrd<Rhs = Self>: ::core::cmp::PartialEq<Rhs>
             where
                 Rhs: ?::core::marker::Sized,
@@ -140,7 +136,7 @@ pub mod traits {
                 // fn ge(&self, other: &Rhs) -> bool;
             }
 
-            #[target(alternative = $crate::Alternate, newer_type = $crate)]
+            #[target(alternative = ::core::cmp::Ord, newer_type = $crate, implementor = $crate::traits::Implementor)]
             pub trait Ord: ::core::cmp::Eq + ::core::cmp::PartialOrd {
                 fn cmp(&self, other: &Self) -> ::core::cmp::Ordering;
                 // fn max(self, other: Self) -> Self

@@ -1,8 +1,10 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
+pub struct Implementor<T>(core::marker::PhantomData<T>, core::convert::Infallible);
+
 // 1. 基本的なトレイトの拡張
-#[target]
+#[target(implementor = Implementor)]
 trait BasicTrait {
     fn get_number(&self) -> i32;
     fn double_number(&self) -> i32 {
@@ -29,7 +31,7 @@ fn test_basic_trait() {
 }
 
 // 2. トレイトジェネリクスを持つケース
-#[target]
+#[target(implementor = Implementor)]
 trait GenericTrait<T> {
     fn process(&self, input: T) -> T;
 }
@@ -50,7 +52,7 @@ fn test_generic_trait() {
 }
 
 // 3. トレイトジェネリクスと関数ジェネリクスを持つケース
-#[target]
+#[target(implementor = Implementor)]
 trait AdvancedTrait<T> {
     fn compute<U>(&self, value: T, extra: U) -> (T, U);
 }
@@ -72,12 +74,12 @@ fn test_advanced_trait() {
 }
 
 // 4. `where` 節を持つトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait ComplexTrait<T>
 where
-    T: Clone + Debug,
+    T: ::core::clone::Clone + ::core::fmt::Debug,
 {
-    fn describe(&self, item: T) -> String;
+    fn describe(&self, item: T) -> ::std::string::String;
 }
 
 impl ComplexTrait<String> for BasicType {
@@ -97,11 +99,11 @@ fn test_complex_trait() {
 }
 
 // 5. ジェネリックな `where` 節を持つケース
-#[target]
+#[target(implementor = Implementor)]
 trait UltimateTrait<T, U>
 where
-    T: Debug + Clone,
-    U: PartialEq,
+    T: ::core::fmt::Debug + ::core::clone::Clone,
+    U: ::core::cmp::PartialEq,
 {
     fn combine(&self, a: T, b: U) -> (T, bool);
 }
@@ -123,10 +125,10 @@ fn test_ultimate_trait() {
 }
 
 // 6. 自由パラメータを持つトレイトの適用
-#[target]
+#[target(implementor = Implementor)]
 trait FreeParamTrait<'a, A, B>
 where
-    A: Clone,
+    A: ::core::clone::Clone,
 {
     fn complex_method(&self, input: &'a A) -> B;
 }
@@ -151,12 +153,12 @@ fn test_free_param_trait() {
 }
 
 // 7. 高度な自由パラメータ + `where` 節
-#[target]
+#[target(implementor = Implementor)]
 trait AdvancedFreeParam<'a, A, B, C>
 where
-    A: Clone + Debug,
-    B: PartialEq<i32>,
-    C: Default,
+    A: ::core::clone::Clone + ::core::fmt::Debug,
+    B: ::core::cmp::PartialEq<i32>,
+    C: ::core::default::Default,
 {
     fn advanced_method(&self, input: &'a A, flag: B) -> C;
 }
@@ -187,7 +189,7 @@ fn test_advanced_free_param_trait() {
 }
 
 // 2. 関数ポインタを扱うトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait FunctionPointerTrait {
     fn apply_fn(&self, f: fn(i32) -> i32) -> i32;
 }
@@ -208,7 +210,7 @@ fn test_function_pointer_trait() {
 }
 
 // 3. 関連型を持つトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait AssociatedTypeTrait {
     type Output;
     fn compute(&self) -> Self::Output;
@@ -232,7 +234,7 @@ fn test_associated_type_trait() {
 }
 
 // 5. `&mut self` を扱うトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait MutatingTrait {
     fn increment(&mut self);
 }
@@ -254,10 +256,13 @@ fn test_mutating_trait() {
 }
 
 // 7. 複数の型制約を持つトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait ComplexConstraintTrait<T>
 where
-    T: Debug + Clone + PartialEq + Default,
+    T: ::core::fmt::Debug
+        + ::core::clone::Clone
+        + ::core::cmp::PartialEq
+        + ::core::default::Default,
 {
     fn process_item(&self, item: T) -> T;
 }
@@ -279,7 +284,7 @@ fn test_complex_constraint_trait() {
 }
 
 // 6. Associated Consts を持つトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait AssociatedConstTrait {
     const VALUE: i32;
     fn get_const_value(&self) -> i32 {

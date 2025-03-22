@@ -1,8 +1,10 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
+struct Implementor<T>(core::marker::PhantomData<T>, core::convert::Infallible);
+
 // 1. Associated Consts & Associated Types を持つトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait ComplexTrait {
     const SCALE: i32;
     type Output;
@@ -33,7 +35,7 @@ fn test_complex_trait() {
 }
 
 // 2. Associated Consts, Types, and Generics
-#[target]
+#[target(implementor = Implementor)]
 trait MultiAssocTrait<T> {
     const FACTOR: T;
     type Result;
@@ -62,10 +64,10 @@ fn test_multi_assoc_trait() {
 }
 
 // 3. `where` 節を含むトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait ConstrainedTrait<T>
 where
-    T: Debug + Clone + Default,
+    T: ::core::fmt::Debug + ::core::clone::Clone + ::core::default::Default,
 {
     const LIMIT: usize;
     type Item;
@@ -93,11 +95,11 @@ fn test_constrained_trait() {
 }
 
 // 4. 自由パラメータを含む高度なトレイト
-#[target]
+#[target(implementor = Implementor)]
 trait FreeParamComplex<'a, A, B>
 where
-    A: Debug + Clone,
-    B: Default,
+    A: ::core::fmt::Debug + ::core::clone::Clone,
+    B: ::core::default::Default,
 {
     const MULTIPLIER: i32;
     type Output;
