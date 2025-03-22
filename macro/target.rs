@@ -7,7 +7,7 @@ use type_leak::{Leaker, NotInternableError};
 pub struct Argument {
     alternative: Option<Path>,
     newer_type: Path,
-    implementor: Path,
+    implementor: Option<Path>,
 }
 
 impl syn::parse::Parse for Argument {
@@ -39,7 +39,7 @@ impl syn::parse::Parse for Argument {
             input.parse::<Token![,]>()?;
         }
         if let Some(implementor) = &implementor {
-            if let Some(last_seg) = implementor.segments.iter().last() {
+            if let Some(last_seg) = implementor.segments.iter().next_back() {
                 if !last_seg.arguments.is_none() {
                     abort!(&last_seg.arguments, "Cannot specify arguments")
                 }
@@ -48,8 +48,7 @@ impl syn::parse::Parse for Argument {
         Ok(Argument {
             alternative,
             newer_type,
-            implementor: implementor
-                .unwrap_or_else(|| abort!(Span::call_site(), "Argument 'implementor' is required")),
+            implementor,
         })
     }
 }
@@ -64,12 +63,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     }
     let nonce = crate::random();
     let crate_path = &arg.newer_type;
-    let trait_ident = &input.ident;
-    let alternative = arg
-        .alternative
-        .clone()
-        .unwrap_or(parse_quote!(#trait_ident));
-    let implementor = arg.implementor;
+    let implementor = arg.implementor.clone().unwrap_or(parse_quote!(Dummy));
     let mut leaker = Leaker::from_trait(
         &input_cloned,
         Box::new(move |args| {
@@ -85,25 +79,62 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     .unwrap_or_else(|NotInternableError(span)| abort!(span, "Not supported"));
     leaker.reduce_roots();
     let (item_impls, referrer) = leaker.finish(|n| parse_quote!(#crate_path::Repeater<#nonce, #n>));
+    if !referrer.is_empty() && arg.implementor.is_none() {
+        abort!(Span::call_site(), "Argument 'implementor' is required")
+    }
+    let mut output = input.clone();
+    if let Some(mut alternative) = arg.alternative.clone() {
+        let last_seg = alternative.segments.iter_mut().next_back().unwrap();
+        let mut args = AngleBracketedGenericArguments {
+            colon2_token: Default::default(),
+            lt_token: Token![<](Span::call_site()),
+            args: Default::default(),
+            gt_token: Token![>](Span::call_site()),
+        };
+        for param in &input.generics.params {
+            match param {
+                GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                    args.args.push(GenericArgument::Lifetime(lifetime.clone()))
+                }
+                GenericParam::Type(TypeParam { ident, .. }) => {
+                    args.args.push(GenericArgument::Type(parse_quote!(#ident)))
+                }
+                GenericParam::Const(ConstParam { ident, .. }) => {
+                    args.args.push(GenericArgument::Const(parse_quote!(#ident)))
+                }
+            }
+        }
+        last_seg.arguments = PathArguments::AngleBracketed(args);
+        output.colon_token = Some(Token![:](Span::call_site()));
+        output.supertraits.push(TypeParamBound::Trait(TraitBound {
+            paren_token: Default::default(),
+            modifier: TraitBoundModifier::None,
+            lifetimes: Default::default(),
+            path: alternative,
+        }));
+        output.items = Vec::new();
+    }
 
     let temporal_mac_name =
         Ident::new(&format!("__newer_type_macro__{}", nonce), Span::call_site());
     quote! {
+        #[doc(hidden)]
         #[macro_export]
         macro_rules! #temporal_mac_name {
             ($($t:tt)*) => {
                 #{&arg.newer_type}::__implement_internal! {
                     /* Implementor */ ($($t)*)
                     /* trait_def */ #input,
-                    /* alternative */ #alternative,
+                    /* alternative */ #{&arg.alternative},
                     /* newer_type */ #crate_path,
                     /* referrer */ #referrer,
                     /* nonce */ #nonce
                 }
             }
         }
+        #[doc(hidden)]
         #{&input.vis} use #temporal_mac_name as #{&input.ident};
         #(#item_impls)*
-        #input
+        #output
     }
 }

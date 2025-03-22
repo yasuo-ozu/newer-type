@@ -87,8 +87,10 @@ impl syn::parse::Parse for Implementor {
             None
         };
         let path: Path = input.parse()?;
-        path.segments.last().map(|seg| match &seg.arguments {
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+        if let Some(seg) = path.segments.last() {
+            if let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =
+                &seg.arguments
+            {
                 args.iter().for_each(|arg| match arg {
                     GenericArgument::AssocType(_)
                     | GenericArgument::AssocConst(_)
@@ -96,8 +98,7 @@ impl syn::parse::Parse for Implementor {
                     _ => (),
                 });
             }
-            _ => (),
-        });
+        }
         if let Some(generics) = &mut generics {
             generics.1.where_clause = input.parse::<Option<WhereClause>>()?;
         }
@@ -116,9 +117,9 @@ impl Implementor {
             target_def: target_def.clone(),
         };
         let mut path = self.path.clone();
-        path.segments
-            .last_mut()
-            .map(|seg| seg.arguments = PathArguments::None);
+        if let Some(seg) = path.segments.last_mut() {
+            seg.arguments = PathArguments::None
+        }
         quote! {
             #path! { #input }
         }
@@ -176,9 +177,9 @@ impl TargetDef {
                 .clone()
                 .into_iter()
                 .filter(|attr| {
-                    if let Some(arg) = Argument::from_attr(&attr).unwrap_or_abort() {
+                    if let Some(arg) = Argument::from_attr(attr).unwrap_or_abort() {
                         for implem in arg.implementors {
-                            if ret.iter().find(|a| a == &&implem).is_none() {
+                            if !ret.iter().any(|a| a == &implem) {
                                 ret.push(implem);
                             }
                         }

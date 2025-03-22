@@ -1,5 +1,6 @@
 use newer_type::{implement, target};
 
+#[allow(unused)]
 struct Implementor<T>(core::marker::PhantomData<T>, core::convert::Infallible);
 
 // 1. シンプルな newtype のテスト

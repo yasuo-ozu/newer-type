@@ -1,7 +1,6 @@
 use crate::implement::{
     Argument as ImplementArgument, Implementor, Output as ImplementOutput, TargetDef,
 };
-use crate::ResultExt;
 use proc_macro2::{Span, TokenStream};
 use proc_macro_error::abort;
 use std::collections::HashMap;
@@ -109,7 +108,7 @@ fn merge_generic_params(
         )
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct ModifyGenerics {
     lifetime_map: HashMap<Lifetime, Lifetime>,
     const_map: HashMap<Ident, Expr>,
@@ -351,18 +350,19 @@ fn update_pat_names(pat: &mut Pat, f: &mut impl FnMut(Span) -> Ident) {
     }
 }
 
-trait EmitImpl {
+trait EmitImpl: Sized + Clone {
     fn emit_trait_const(
         &self,
         trait_: &TokenStream,
         implementor: &Implementor,
         input: &TraitItemConst,
     ) -> TokenStream {
-        let ptyp = self.get_predicate_type(implementor).unwrap_or_else(|| {
+        let ptyps = self.get_predicate_types(implementor);
+        if ptyps.len() != 1 {
             abort!(&implementor.path, "cannot implement this trait to enum"; note = input.span() => "because the trait has associated const");
-        });
+        }
         quote! {
-            const #{&input.ident} : #{&input.ty} = <#ptyp as #trait_>::#{&input.ident};
+            const #{&input.ident} : #{&input.ty} = <#(#ptyps)* as #trait_>::#{&input.ident};
         }
     }
     fn emit_trait_ty(
@@ -371,12 +371,13 @@ trait EmitImpl {
         implementor: &Implementor,
         input: &TraitItemType,
     ) -> TokenStream {
-        let ptyp = self.get_predicate_type(implementor).unwrap_or_else(|| {
+        let ptyps = self.get_predicate_types(implementor);
+        if ptyps.len() != 1 {
             abort!(&implementor.path, "cannot implement this trait to enum"; note = input.span() => "because the trait has associated types");
-        });
+        }
         let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
         quote! {
-            type #{&input.ident} #impl_generics = <#ptyp as #trait_>::#{&input.ident} #ty_generics #where_clause;
+            type #{&input.ident} #impl_generics = <#(#ptyps)* as #trait_>::#{&input.ident} #ty_generics #where_clause;
         }
     }
     fn emit_trait_fn(
@@ -387,24 +388,21 @@ trait EmitImpl {
         nonce: u64,
     ) -> TokenStream {
         for param in input.sig.inputs.iter_mut() {
-            match param {
-                FnArg::Typed(PatType { pat, .. }) => {
-                    let mut cnt = 0usize;
-                    update_pat_names(pat.as_mut(), &mut |span| {
-                        cnt += 1;
-                        Ident::new(&format!("__newer_type_arg_{}_{}", nonce, cnt), span)
-                    })
-                }
-                _ => (),
+            if let FnArg::Typed(PatType { pat, .. }) = param {
+                let mut cnt = 0usize;
+                update_pat_names(pat.as_mut(), &mut |span| {
+                    cnt += 1;
+                    Ident::new(&format!("__newer_type_arg_{}_{}", nonce, cnt), span)
+                })
             }
         }
         let (impl_generics, _, where_clause) = input.sig.generics.split_for_impl();
         // let (pred_ix, pred_ident, pred_ref_tokens) =
         // find_pred_param(&input.sig.inputs)
         let preds = find_pred_param(&input.sig.inputs);
-        if preds.len() == 0 {
+        if preds.is_empty() {
             abort!(&input.sig.inputs, "no `Self` type is found"; hint = "exact one `self` type is required in parameters");
-        } else if preds.len() > 1 && self.get_predicate_type(implementor).is_none() {
+        } else if preds.len() > 1 && self.get_predicate_types(implementor).is_empty() {
             // self is enum
             abort!(&preds[1].1, "multiple `Self` type is not supported"; hint = preds[0].1.span() => "first `Self` type is here");
         }
@@ -417,7 +415,7 @@ trait EmitImpl {
             quote! {
                 <_ as #trait_> :: #{&input.sig.ident} (
                     #(for (i, param) in input.sig.inputs.iter().enumerate()), {
-                        #(if let Some((_, pred_param)) = preds.iter().zip(pred_params).filter(|((n, _, _), _)| &i == n).next()) {
+                        #(if let Some((_, pred_param)) = preds.iter().zip(pred_params).find(|((n, _, _), _)| &i == n)) {
                             #pred_param
                         }
                         #(else) {
@@ -446,71 +444,131 @@ trait EmitImpl {
         }
     }
 
-    fn get_predicate_type(&self, implementor: &Implementor) -> Option<Type>;
+    fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type>;
+
+    fn modify_self(self, modifier: &mut ModifyGenerics) -> Self;
 
     fn emit_impl(&self, input: &Input) -> TokenStream {
+        let nonce = crate::random();
         let mut path = input
             .alternative
             .clone()
             .unwrap_or(input.implementor.path.clone());
-        path.segments
-            .last_mut()
-            .map(|last| last.arguments = PathArguments::None);
-        let type_ty_generics = self.generics().split_for_impl().1;
-        let mut trait_ty_generics = input
-            .implementor
-            .path
-            .segments
-            .last()
-            .unwrap_or_else(|| abort!(&input.implementor, "Path without segments is not supported"))
-            .arguments
-            .clone();
+        if let Some(last) = path.segments.last_mut() {
+            last.arguments = PathArguments::None;
+        }
+        let mut type_generics = self.generics().clone();
+        let mut type_modifier: ModifyGenerics = Default::default();
+        for param in &mut type_generics.params {
+            match param {
+                GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                    type_modifier.append_lifetime(lifetime, nonce + 1)
+                }
+                GenericParam::Type(TypeParam { ident, .. }) => {
+                    type_modifier.append_type(ident, nonce + 1)
+                }
+                GenericParam::Const(ConstParam { ident, .. }) => {
+                    type_modifier.append_const(ident, nonce + 1)
+                }
+            }
+        }
+        // Generics for `#[implement(for<GENERICS> MyStruct<GENERICS>)]``
         let mut impl_params = input
             .implementor
             .generics
             .as_ref()
             .map(|(_, g)| g.params.iter().cloned().collect::<Vec<_>>())
             .unwrap_or_default();
-        let mut modifier: ModifyGenerics = Default::default();
-        let nonce = crate::random();
+        let mut implementor = input.implementor.clone();
+        let mut implr_modifier: ModifyGenerics = Default::default();
         for p in impl_params.iter_mut() {
             match p {
-                GenericParam::Lifetime(lt) => modifier.append_lifetime(&mut lt.lifetime, nonce),
-                GenericParam::Type(TypeParam { ident, .. }) => modifier.append_type(ident, nonce),
+                GenericParam::Lifetime(lt) => {
+                    implr_modifier.append_lifetime(&mut lt.lifetime, nonce)
+                }
+                GenericParam::Type(TypeParam { ident, .. }) => {
+                    implr_modifier.append_type(ident, nonce)
+                }
                 GenericParam::Const(ConstParam { ident, .. }) => {
-                    modifier.append_const(ident, nonce)
+                    implr_modifier.append_const(ident, nonce)
                 }
             }
         }
-        modifier.visit_path_arguments_mut(&mut trait_ty_generics);
-        let mut modifier: ModifyGenerics = Default::default();
-        if let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) =
-            &trait_ty_generics
-        {
-            for (i, tr_arg) in input.trait_def.generics.params.iter().enumerate() {
-                if let Some(implr_arg) = args.get(i) {
-                    match (tr_arg, implr_arg) {
-                        (
-                            GenericParam::Lifetime(LifetimeParam { lifetime, .. }),
-                            GenericArgument::Lifetime(lt1),
-                        ) => {
-                            modifier.lifetime_map.insert(lifetime.clone(), lt1.clone());
-                        }
-                        (
-                            GenericParam::Type(TypeParam { ident, .. }),
-                            GenericArgument::Type(t1),
-                        ) => {
-                            modifier.type_map.insert(ident.clone(), t1.clone());
-                        }
-                        (
-                            GenericParam::Const(ConstParam { ident, .. }),
-                            GenericArgument::Const(c1),
-                        ) => {
-                            modifier.const_map.insert(ident.clone(), c1.clone());
-                        }
-                        _ => {
-                            abort!(implr_arg, "cannot assign this argument"; hint = tr_arg.span() => "param definition is here")
-                        }
+        if let Some((_, generics)) = &mut implementor.generics {
+            implr_modifier.visit_generics_mut(generics);
+            type_modifier.visit_generics_mut(generics);
+        }
+        implr_modifier.visit_path_mut(&mut implementor.path);
+        type_modifier.visit_path_mut(&mut implementor.path);
+
+        let trait_ty_generics = implementor
+            .path
+            .segments
+            .last()
+            .unwrap_or_else(|| abort!(&input.implementor, "Path without segments is not supported"))
+            .arguments
+            .clone();
+
+        let mut trait_modifier: ModifyGenerics = Default::default();
+        let implr_args = match &trait_ty_generics {
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+                args.iter().cloned().collect::<Vec<_>>()
+            }
+            PathArguments::None => vec![],
+            _ => unimplemented!(),
+        };
+
+        for (i, tr_arg) in input.trait_def.generics.params.iter().enumerate() {
+            if let Some(implr_arg) = implr_args.get(i) {
+                match (tr_arg, implr_arg) {
+                    (
+                        GenericParam::Lifetime(LifetimeParam { lifetime, .. }),
+                        GenericArgument::Lifetime(lt1),
+                    ) => {
+                        trait_modifier
+                            .lifetime_map
+                            .insert(lifetime.clone(), lt1.clone());
+                    }
+                    (GenericParam::Type(TypeParam { ident, .. }), GenericArgument::Type(t1)) => {
+                        trait_modifier.type_map.insert(ident.clone(), t1.clone());
+                    }
+                    (GenericParam::Const(ConstParam { ident, .. }), GenericArgument::Const(c1)) => {
+                        trait_modifier.const_map.insert(ident.clone(), c1.clone());
+                    }
+                    _ => {
+                        abort!(implr_arg, "cannot assign this argument"; hint = tr_arg.span() => "param definition is here")
+                    }
+                }
+            } else {
+                match tr_arg {
+                    GenericParam::Type(TypeParam {
+                        ident,
+                        eq_token: Some(_),
+                        default: Some(ty),
+                        ..
+                    }) => {
+                        trait_modifier.type_map.insert(ident.clone(), ty.clone());
+                    }
+                    GenericParam::Const(ConstParam {
+                        ident,
+                        eq_token: Some(_),
+                        default: Some(expr),
+                        ..
+                    }) => {
+                        trait_modifier.const_map.insert(ident.clone(), expr.clone());
+                    }
+                    GenericParam::Type(TypeParam { ident, .. })
+                    | GenericParam::Const(ConstParam { ident, .. }) => {
+                        abort!(
+                            &trait_ty_generics, "parameter '{}' is not specified for trait {}", ident, &input.trait_def.ident;
+                            hint = ident.span() => "defined here";
+                        );
+                    }
+                    GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                        abort!(
+                            &trait_ty_generics, "lifetime parameter '{}' is not specified", &lifetime;
+                            hint = lifetime.span() => "defined here";
+                        );
                     }
                 }
             }
@@ -521,32 +579,58 @@ trait EmitImpl {
             .generics
             .as_ref()
             .and_then(|(_, g)| g.where_clause.clone())
-            .map(|mut wc| {
-                modifier.visit_where_clause_mut(&mut wc);
-                wc
-            });
-        let impl_generics = merge_generic_params(self.generics().params.clone(), impl_params)
+            .map(|w| w.predicates.iter().cloned().collect::<Vec<_>>())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|mut wp| {
+                trait_modifier.visit_where_predicate_mut(&mut wp);
+                wp
+            })
+            .collect::<Vec<_>>();
+        let impl_generics = merge_generic_params(type_generics.params.clone(), impl_params)
             .collect::<Punctuated<_, Token![,]>>();
         let mut trait_items = input.trait_def.items.clone();
         for item in trait_items.iter_mut() {
-            modifier.visit_trait_item_mut(item);
+            trait_modifier.visit_trait_item_mut(item);
         }
-
+        let cloned_self = self.clone().modify_self(&mut type_modifier);
+        let pred_tys = self
+            .get_predicate_types(&implementor)
+            .into_iter()
+            .map(|mut ty| {
+                type_modifier.visit_type_mut(&mut ty);
+                ty
+            })
+            .collect::<Vec<_>>();
         quote! {
-            impl < #impl_generics > #path #trait_ty_generics for #{self.ident()} #type_ty_generics
-            #where_clause
+            #[automatically_derived]
+            impl < #impl_generics > #path #trait_ty_generics for #{self.ident()} #{type_generics.split_for_impl().1}
+            where
+                #(#where_clause,)*
+                #(#pred_tys: #path #trait_ty_generics),*
             {
                 #(for item in &trait_items) {
                     #(if let TraitItem::Fn(tfn) = item) {
-                        #{self.emit_trait_fn(&quote!(#path #trait_ty_generics), &input.implementor, tfn.clone(), nonce)}
+                        #(if &tfn.sig.ident == "ne") {
+                            #[allow(clippy::clippy::partialeq_ne_impl)]
+                        }
+                        #{cloned_self.emit_trait_fn(&quote!(#path #trait_ty_generics), &implementor, tfn.clone(), nonce)}
                     }
                     #(if let TraitItem::Type(ttyp) = item) {
-                        #{self.emit_trait_ty(&quote!(#path #trait_ty_generics), &input.implementor, ttyp)}
+                        #{cloned_self.emit_trait_ty(&quote!(#path #trait_ty_generics), &implementor, ttyp)}
                     }
                     #(if let TraitItem::Const(tconst) = item) {
-                        #{self.emit_trait_const(&quote!(#path #trait_ty_generics), &input.implementor, tconst)}
+                        #{cloned_self.emit_trait_const(&quote!(#path #trait_ty_generics), &implementor, tconst)}
                     }
                 }
+            }
+            #(if input.alternative.is_some()) {
+                #[automatically_derived]
+                impl < #impl_generics > #{&implementor.path} for #{self.ident()} #{type_generics.split_for_impl().1}
+                where
+                    #(#where_clause,)*
+                    #(#pred_tys: #path #trait_ty_generics),*
+                {}
             }
         }
     }
@@ -605,8 +689,18 @@ impl EmitImpl for ItemEnum {
         &self.ident
     }
 
-    fn get_predicate_type(&self, _implementor: &Implementor) -> Option<Type> {
-        None
+    fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
+        self.variants
+            .iter()
+            .map(|v| find_pred_field(implementor, &v.fields).1.ty.clone())
+            .collect()
+    }
+
+    fn modify_self(mut self, modifier: &mut ModifyGenerics) -> Self {
+        for variant in &mut self.variants {
+            modifier.visit_variant_mut(variant);
+        }
+        self
     }
 }
 
@@ -651,16 +745,21 @@ impl EmitImpl for ItemStruct {
         &self.ident
     }
 
-    fn get_predicate_type(&self, implementor: &Implementor) -> Option<Type> {
-        Some(find_pred_field(implementor, &self.fields).1.ty.clone())
+    fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
+        vec![find_pred_field(implementor, &self.fields).1.ty.clone()]
+    }
+
+    fn modify_self(mut self, modifier: &mut ModifyGenerics) -> Self {
+        modifier.visit_fields_mut(&mut self.fields);
+        self
     }
 }
 
 impl Input {
     pub fn implement_internal(&self) -> TokenStream {
         match &self.target_def {
-            TargetDef::Enum(item_enum) => item_enum.emit_impl(&self),
-            TargetDef::Struct(item_struct) => item_struct.emit_impl(&self),
+            TargetDef::Enum(item_enum) => item_enum.emit_impl(self),
+            TargetDef::Struct(item_struct) => item_struct.emit_impl(self),
         }
     }
 }
@@ -682,7 +781,7 @@ fn find_pred_field(implementor: &Implementor, fields: &Fields) -> (usize, Field)
         .collect::<Vec<_>>();
     let pred_fields = if pred_fields.is_empty() {
         if fields.len() == 1 {
-            return (0, fields.iter().cloned().next().unwrap());
+            return (0, fields.iter().next().cloned().unwrap());
         } else {
             fields
                 .iter()
