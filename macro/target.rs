@@ -82,6 +82,9 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     if !referrer.is_empty() && arg.implementor.is_none() {
         abort!(Span::call_site(), "Argument 'implementor' is required")
     }
+    if let Some(unsafety) = &input.unsafety {
+        abort!(&unsafety, "Cannot apply #[target] to unsafe traits");
+    }
     let mut output = input.clone();
     if let Some(mut alternative) = arg.alternative.clone() {
         let last_seg = alternative.segments.iter_mut().next_back().unwrap();
@@ -113,6 +116,12 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
             path: alternative,
         }));
         output.items = Vec::new();
+        output.unsafety = Some(Default::default());
+        output.attrs.push(parse_quote!(#[doc = "# Safety"]));
+        output.attrs.push(parse_quote!(#[doc = ""]));
+        output
+            .attrs
+            .push(parse_quote!(#[doc = "should be implemented by [`newer_type::implement`]"]));
     }
 
     let temporal_mac_name =

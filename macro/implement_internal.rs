@@ -626,7 +626,7 @@ trait EmitImpl: Sized + Clone {
             }
             #(if input.alternative.is_some()) {
                 #[automatically_derived]
-                impl < #impl_generics > #{&implementor.path} for #{self.ident()} #{type_generics.split_for_impl().1}
+                unsafe impl < #impl_generics > #{&implementor.path} for #{self.ident()} #{type_generics.split_for_impl().1}
                 where
                     #(#where_clause,)*
                     #(#pred_tys: #path #trait_ty_generics),*
