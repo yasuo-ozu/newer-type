@@ -1,6 +1,75 @@
 #![doc = include_str!("./README.md")]
 
-pub use newer_type_macro::{__implement_internal, implement, target};
+// internal
+pub use newer_type_macro::__implement_internal;
+
+/// Implement a trait for given enum or struct. The trait should be defined with
+/// [`target`] attribute.
+///
+/// # Example
+///
+/// ```
+/// use newer_type::implement;
+/// use newer_type::traits::{Extend, PartialEq};
+///
+/// #[implement(Extend<usize>)]
+/// struct Example1(Vec<usize>);
+///
+/// #[implement(Extend<T>)]
+/// struct Example2<T>(Vec<T>);
+///
+/// #[implement(for<T> PartialEq<T>)]
+/// struct Example3(String);
+///
+/// #[implement(for<T: std::fmt::Debug> PartialEq<T>)]
+/// struct Example4<U>(U);
+/// ```
+pub use newer_type_macro::implement;
+
+/// Define a trait for use of [`implement`] macro.
+///
+/// # Arguments (all optional)
+///
+/// - `alternative` ... Trait. If specified, implement this trait instead of the
+///   target trait itself. The target trait is used only for an argument of
+///   [`implement`] macro. See implementation of [`traits`].
+/// - `newer_type` ... Set path to `newer_type` crate. Defaults to
+///   `::newer_type`. Example:
+/// `::your_crate::_export::newer_type`.
+/// - `implementor` ... a (uninhabited) struct with one generic argument, used
+///   as `type_leak`'s implementor type. It should be specified when you use
+///   types with relative path in the trait definition.
+///
+///   # Example
+///
+///   ```
+///   use newer_type::target;
+///
+///   #[target]
+///   trait MyTrait {
+///       fn my_fn(&self) -> ::core::primitive::usize;
+///   }
+///   ```
+///
+///   ```
+///   use newer_type::target;
+///
+///   pub struct Implementor<T>(
+///       core::marker::PhantomData<T>,
+///       core::convert::Infallible
+///   );
+///
+///   type TypeFromContext = usize;
+///
+///   // Implementor should be public to all `MyTrait` users, and thus it should
+///   // be specified with absolute path (like
+///   // `::your_crate::path::to::Implementor`).
+///   #[target(implementor = Implementor)]
+///   trait MyTrait {
+///       fn my_fn(&self, t: TypeFromContext) -> Box<usize>;
+///   }
+///   ```
+pub use newer_type_macro::target;
 
 #[doc(hidden)]
 pub struct Alternate(::core::convert::Infallible);
