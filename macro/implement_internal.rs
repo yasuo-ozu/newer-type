@@ -78,10 +78,13 @@ impl template_quote::ToTokens for Input {
     }
 }
 
-fn merge_generic_params(
-    args1: impl IntoIterator<Item = GenericParam, IntoIter: Clone>,
-    args2: impl IntoIterator<Item = GenericParam, IntoIter: Clone>,
-) -> impl Iterator<Item = GenericParam> {
+fn merge_generic_params<I1, I2>(args1: I1, args2: I2) -> impl Iterator<Item = GenericParam>
+where
+    I1: IntoIterator<Item = GenericParam>,
+    I2: IntoIterator<Item = GenericParam>,
+    I1::IntoIter: Clone,
+    I2::IntoIter: Clone,
+{
     let it1 = args1.into_iter();
     let it2 = args2.into_iter();
     it1.clone()
