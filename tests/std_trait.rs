@@ -1,5 +1,7 @@
 use newer_type::implement;
-use newer_type::traits::{Borrow, BorrowMut, Eq, Extend, IntoIterator, Ord, PartialEq, PartialOrd};
+use newer_type::traits::{
+    Borrow, BorrowMut, Debug, Display, Eq, Extend, Hash, IntoIterator, Ord, PartialEq, PartialOrd,
+};
 
 #[implement(
     IntoIterator,
@@ -9,9 +11,11 @@ use newer_type::traits::{Borrow, BorrowMut, Eq, Extend, IntoIterator, Ord, Parti
     PartialEq,
     Eq,
     PartialOrd,
-    Ord
+    Ord,
+    Display,
+    Debug,
+    Hash
 )]
-#[derive(Debug)]
 pub struct MyVec<T>(Vec<T>);
 
 impl<T> MyVec<T> {

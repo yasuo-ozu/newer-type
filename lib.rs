@@ -276,5 +276,24 @@ pub mod traits {
                 //     Self: ::core::marker::Sized;
             }
         }
+        {
+            #[target(alternative = ::core::hash::Hash)]
+            pub trait Hash {
+                fn hash<H>(&self, state: &mut H)
+                   where H: ::core::hash::Hasher;
+            }
+        }
+        {
+            #[target(alternative = ::core::fmt::Display)]
+            pub trait Display {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result;
+            }
+        }
+        {
+            #[target(alternative = ::core::fmt::Debug)]
+            pub trait Debug {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result;
+            }
+        }
     }
 }
