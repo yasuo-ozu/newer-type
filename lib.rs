@@ -34,11 +34,7 @@ pub use newer_type_macro::implement;
 ///   target trait itself. The target trait is used only for an argument of
 ///   [`implement`] macro. See implementation of [`traits`].
 /// - `newer_type` ... Set path to `newer_type` crate. Defaults to
-///   `::newer_type`. Example:
-/// `::your_crate::_export::newer_type`.
-/// - `implementor` ... a (uninhabited) struct with one generic argument, used
-///   as `type_leak`'s implementor type. It should be specified when you use
-///   types with relative path in the trait definition.
+///   `::newer_type`. Example: `::your_crate::_export::newer_type`.
 ///
 ///   # Example
 ///
@@ -53,18 +49,8 @@ pub use newer_type_macro::implement;
 ///
 ///   ```
 ///   use newer_type::target;
-///
-///   pub struct Implementor<T>(
-///       core::marker::PhantomData<T>,
-///       core::convert::Infallible
-///   );
-///
 ///   type TypeFromContext = usize;
-///
-///   // Implementor should be public to all `MyTrait` users, and thus it should
-///   // be specified with absolute path (like
-///   // `::your_crate::path::to::Implementor`).
-///   #[target(implementor = Implementor)]
+///   #[target]
 ///   trait MyTrait {
 ///       fn my_fn(&self, t: TypeFromContext) -> Box<usize>;
 ///   }
@@ -87,6 +73,7 @@ pub mod traits {
     macro_rules! emit_traits {
         () => {};
         (
+            $(#[doc = $doc_example:literal])*
             $([$($trait_params:ident),*$(,)?])?{
                 #[target(alternative = $alternative:path)]
                 pub trait $trait_name:ident $($trait_contents:tt)*
@@ -98,31 +85,21 @@ pub mod traits {
             #[doc = "with [`newer_type::implement`]."]
             ///
             /// # Example
-            /// ```ignore
-            #[doc = concat!(
-                " #[implement(",
-                    $(
-                        "for<",
-                        $(stringify!($trait_params),)+
-                        "> newer_type::traits::",
-                    )?
-                        stringify!($trait_name),
-                    $(
-                        "<",
-                        $(stringify!($trait_params),)+
-                        ">",
-                    )?
-                ")]")]
-            /// struct MyStruct {
-            #[doc = concat!("     slot: TypeWhichAlreadyImplements", stringify!($trait_name), ",")]
-            /// }
-            /// ```
+            ///
+            $(#[doc = $doc_example])*
             pub trait $trait_name $($trait_contents)*
             emit_traits!{ $($t)* }
         };
     }
 
     emit_traits! {
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::IntoIterator)]
+        /// struct MyStruct {
+        ///     slot: Vec<u8>,
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::iter::IntoIterator)]
             pub trait IntoIterator {
@@ -132,6 +109,13 @@ pub mod traits {
             }
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(for<A> newer_type::traits::Extend<A>)]
+        /// struct MyStruct {
+        ///     slot: Vec<u8>,
+        /// }
+        /// ```
         [A]{
             #[target(alternative = ::core::iter::Extend)]
             pub trait Extend<A> {
@@ -141,6 +125,13 @@ pub mod traits {
             }
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::Iterator)]
+        /// struct MyStruct {
+        ///     slot: std::vec::IntoIter<u8>,
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::iter::Iterator)]
             pub trait Iterator {
@@ -158,15 +149,29 @@ pub mod traits {
                 fn last(self) -> ::core::option::Option<Self::Item>
                 where
                     Self: ::core::marker::Sized;
-                fn nth(&mut self, n: ::core::primitive::usize) -> Option<Self::Item>;
+                fn nth(&mut self, n: ::core::primitive::usize) -> ::core::option::Option<Self::Item>;
             }
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::Iterator, newer_type::traits::FusedIterator)]
+        /// struct MyStruct {
+        ///     slot: std::vec::IntoIter<u8>,
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::iter::FusedIterator)]
             pub trait FusedIterator: ::core::iter::Iterator {}
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::Iterator, newer_type::traits::ExactSizeIterator)]
+        /// struct MyStruct {
+        ///     slot: std::vec::IntoIter<u8>,
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::iter::ExactSizeIterator)]
             pub trait ExactSizeIterator: ::core::iter::Iterator {
@@ -174,6 +179,13 @@ pub mod traits {
             }
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::Iterator, newer_type::traits::DoubleEndedIterator)]
+        /// struct MyStruct {
+        ///     slot: std::vec::IntoIter<u8>,
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::iter::DoubleEndedIterator)]
             pub trait DoubleEndedIterator: ::core::iter::Iterator {
@@ -195,10 +207,17 @@ pub mod traits {
                 fn rfind<P>(&mut self, predicate: P) -> ::core::option::Option<Self::Item>
                 where
                     Self: ::core::marker::Sized,
-                    P: ::core::ops::FnMut(&Self::Item) -> bool;
+                    P: ::core::ops::FnMut(&Self::Item) -> ::core::primitive::bool;
             }
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(for<Borrowed> newer_type::traits::Borrow<Borrowed>)]
+        /// struct MyStruct {
+        ///     slot: u8
+        /// }
+        /// ```
         [Borrowed]{
             #[target(alternative = ::core::borrow::Borrow)]
             pub trait Borrow<Borrowed>
@@ -210,6 +229,14 @@ pub mod traits {
             }
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(for<Borrowed> newer_type::traits::Borrow<Borrowed>)]
+        /// #[implement(for<Borrowed> newer_type::traits::BorrowMut<Borrowed>)]
+        /// struct MyStruct {
+        ///     slot: u8,
+        /// }
+        /// ```
         [Borrowed]{
             #[target(alternative = ::core::borrow::BorrowMut)]
             pub trait BorrowMut<Borrowed>: ::core::borrow::Borrow<Borrowed>
@@ -220,6 +247,13 @@ pub mod traits {
             }
         }
 
+        /// ```ignore
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::ToOwned)]
+        /// struct MyStruct {
+        ///     slot: String,
+        /// }
+        /// ```
         {
             #[target(alternative = ::std::borrow::ToOwned)]
             pub trait ToOwned {
@@ -229,6 +263,13 @@ pub mod traits {
             }
         }
 
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(for<Rhs> newer_type::traits::PartialEq<Rhs>)]
+        /// struct MyStruct {
+        ///     slot: u8,
+        /// }
+        /// ```
         [Rhs]{
             #[target(alternative = ::core::cmp::PartialEq)]
             pub trait PartialEq<Rhs = Self>
@@ -240,11 +281,26 @@ pub mod traits {
             }
         }
 
+        /// ```ignore
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::PartialEq<Self>)]
+        /// #[implement(newer_type::traits::Eq)]
+        /// struct MyStruct {
+        ///     slot: u8
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::cmp::Eq)]
             pub trait Eq: ::core::cmp::PartialEq {}
         }
 
+        /// ```ignore
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::PartialOrd<u8>)]
+        /// struct MyStruct {
+        ///     slot: u8
+        /// }
+        /// ```
         [Rhs]{
             #[target(alternative = ::core::cmp::PartialOrd)]
             pub trait PartialOrd<Rhs = Self>: ::core::cmp::PartialEq<Rhs>
@@ -261,6 +317,16 @@ pub mod traits {
             }
         }
 
+        /// ```ignore
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::PartialEq<MyStruct>)]
+        /// #[implement(newer_type::traits::Eq)]
+        /// #[implement(newer_type::traits::PartialOrd<MyStruct>)]
+        /// #[implement(newer_type::traits::Ord)]
+        /// struct MyStruct {
+        ///     slot: u8
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::cmp::Ord)]
             pub trait Ord: ::core::cmp::Eq + ::core::cmp::PartialOrd {
@@ -276,6 +342,13 @@ pub mod traits {
                 //     Self: ::core::marker::Sized;
             }
         }
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::Hash)]
+        /// struct MyStruct {
+        ///     slot: u8
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::hash::Hash)]
             pub trait Hash {
@@ -283,12 +356,26 @@ pub mod traits {
                    where H: ::core::hash::Hasher;
             }
         }
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::Display)]
+        /// struct MyStruct {
+        ///     slot: u8
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::fmt::Display)]
             pub trait Display {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result;
             }
         }
+        /// ```
+        /// # use newer_type::implement;
+        /// #[implement(newer_type::traits::Debug)]
+        /// struct MyStruct {
+        ///     slot: u8
+        /// }
+        /// ```
         {
             #[target(alternative = ::core::fmt::Debug)]
             pub trait Debug {

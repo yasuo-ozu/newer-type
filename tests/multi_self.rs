@@ -1,12 +1,9 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
-#[allow(unused)]
-struct Implementor<T>(core::marker::PhantomData<T>, core::convert::Infallible);
-
 // 1. トレイト関数のシグネチャとして複数の `Self` を持つが、戻り値に `Self`
 //    を含まない
-#[target(implementor = Implementor)]
+#[target]
 trait MultiSelfArgTrait {
     fn process(self, other: Self, reference: &Self, mutable: &mut Self) -> i32;
     fn process_no_receiver(other: Self, reference: &Self) -> bool;

@@ -760,9 +760,18 @@ impl EmitImpl for ItemStruct {
 
 impl Input {
     pub fn implement_internal(&self) -> TokenStream {
+        let mut input = self.clone();
+        let mut visitor = self.referrer.clone().into_visitor(|_, id| {
+            let ident = Ident::new(
+                &format!("__NewerTypeLeakedType_{}_{}", self.nonce, id),
+                Span::call_site(),
+            );
+            parse_quote!(Self::#ident)
+        });
+        visitor.visit_item_trait_mut(&mut input.trait_def);
         match &self.target_def {
-            TargetDef::Enum(item_enum) => item_enum.emit_impl(self),
-            TargetDef::Struct(item_struct) => item_struct.emit_impl(self),
+            TargetDef::Enum(item_enum) => item_enum.emit_impl(&input),
+            TargetDef::Struct(item_struct) => item_struct.emit_impl(&input),
         }
     }
 }

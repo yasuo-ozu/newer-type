@@ -31,14 +31,12 @@ impl<T> ResultExt for syn::Result<T> {
 
 #[proc_macro_error]
 #[proc_macro_attribute]
-/// See `::newet_type::target`
 pub fn target(arg: TokenStream1, input: TokenStream1) -> TokenStream1 {
     target::target(parse_macro_input!(arg), parse_macro_input!(input)).into()
 }
 
 #[proc_macro_error]
 #[proc_macro_attribute]
-/// See `::newet_type::implement`
 pub fn implement(arg: TokenStream1, input: TokenStream1) -> TokenStream1 {
     implement::implement(&parse_macro_input!(arg), &parse_macro_input!(input)).into()
 }

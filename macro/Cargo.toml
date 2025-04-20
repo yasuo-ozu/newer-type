@@ -2,7 +2,7 @@
 name = "newer-type-macro"
 description = "Support defining newtype wrapper with inheriting trait implementations"
 authors = ["Yasuo Ozu <yasuo@ozu.email>"]
-version = "0.1.1"
+version = "0.1.2"
 repository = "https://github.com/yasuo-ozu/newer-type"
 edition = "2021"
 license = "MIT"
@@ -20,7 +20,7 @@ proc-macro2 = "1.0"
 template-quote = "0.4"
 proc-macro-error = { version = "1.0", default-features = false }
 derive-syn-parse = "0.2.0"
-type-leak = "0.1.0"
+type-leak = "0.2.0"
 
 [dependencies.syn]
 version = "2.0"

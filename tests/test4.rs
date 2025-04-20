@@ -1,11 +1,8 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
-#[allow(unused)]
-struct Implementor<T>(core::marker::PhantomData<T>, core::convert::Infallible);
-
 // 1. Associated Consts & Associated Types を持つトレイト
-#[target(implementor = Implementor)]
+#[target]
 trait ComplexTrait {
     const SCALE: i32;
     type Output;
@@ -36,7 +33,7 @@ fn test_complex_trait() {
 }
 
 // 2. Associated Consts, Types, and Generics
-#[target(implementor = Implementor)]
+#[target]
 trait MultiAssocTrait<T> {
     const FACTOR: T;
     type Result;
@@ -65,7 +62,7 @@ fn test_multi_assoc_trait() {
 }
 
 // 3. `where` 節を含むトレイト
-#[target(implementor = Implementor)]
+#[target]
 trait ConstrainedTrait<T>
 where
     T: ::core::fmt::Debug + ::core::clone::Clone + ::core::default::Default,
@@ -96,7 +93,7 @@ fn test_constrained_trait() {
 }
 
 // 4. 自由パラメータを含む高度なトレイト
-#[target(implementor = Implementor)]
+#[target]
 trait FreeParamComplex<'a, A, B>
 where
     A: ::core::fmt::Debug + ::core::clone::Clone,

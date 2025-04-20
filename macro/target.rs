@@ -2,19 +2,17 @@ use proc_macro2::{Span, TokenStream};
 use proc_macro_error::abort;
 use syn::*;
 use template_quote::quote;
-use type_leak::{Leaker, NotInternableError};
+use type_leak::{Leaker, NotInternableError, Referrer};
 
 pub struct Argument {
     alternative: Option<Path>,
     newer_type: Path,
-    implementor: Option<Path>,
 }
 
 impl syn::parse::Parse for Argument {
     fn parse(input: parse::ParseStream) -> Result<Self> {
         let mut alternative = None;
         let mut newer_type = parse_quote!(::newer_type);
-        let mut implementor: Option<Path> = None;
 
         while !input.is_empty() {
             let ident = input.parse::<Ident>()?;
@@ -26,9 +24,6 @@ impl syn::parse::Parse for Argument {
                 "newer_type" => {
                     newer_type = input.parse()?;
                 }
-                "implementor" => {
-                    implementor = Some(input.parse()?);
-                }
                 _ => {
                     return Err(Error::new_spanned(&ident, "Unsupported argument"));
                 }
@@ -38,19 +33,69 @@ impl syn::parse::Parse for Argument {
             }
             input.parse::<Token![,]>()?;
         }
-        if let Some(implementor) = &implementor {
-            if let Some(last_seg) = implementor.segments.iter().next_back() {
-                if !last_seg.arguments.is_none() {
-                    abort!(&last_seg.arguments, "Cannot specify arguments")
-                }
-            }
-        }
         Ok(Argument {
             alternative,
             newer_type,
-            implementor,
         })
     }
+}
+
+fn emit_internal_trait(
+    input: &ItemTrait,
+    leak_trait_name: &Ident,
+    referrer: &Referrer,
+    nonce: u64,
+) -> (TokenStream, TypeParamBound) {
+    let self_type = Ident::new(&format!("__NewerTypeSelf{}", nonce), Span::call_site());
+    let (_, ty_generics, where_clause) = input.generics.split_for_impl();
+    let leak_trait_impl: Vec<_> = referrer
+        .iter()
+        .enumerate()
+        .map(|(n, ty)| {
+            (
+                Ident::new(
+                    &format!("__NewerTypeLeakedType_{}_{}", nonce, n),
+                    Span::call_site(),
+                ),
+                ty.clone(),
+            )
+        })
+        .collect();
+    let mut impl_generics = input.generics.params.clone();
+    for param in impl_generics.iter_mut() {
+        match param {
+            GenericParam::Type(type_param) => {
+                type_param.eq_token = None;
+                type_param.default = None;
+            }
+            GenericParam::Const(const_param) => {
+                const_param.eq_token = None;
+                const_param.default = None;
+            }
+            _ => (),
+        }
+    }
+    impl_generics.push(GenericParam::Type(parse_quote!(#self_type)));
+    (
+        quote! {
+            #[doc(hidden)]
+            pub trait #leak_trait_name #{&input.generics} #where_clause {
+                #(for (ident, _) in leak_trait_impl.iter()) {
+                    type #ident: ?::core::marker::Sized;
+                }
+            }
+            impl < #impl_generics > #leak_trait_name #ty_generics for #self_type
+            where
+                Self: #{&input.ident} #ty_generics,
+                #{where_clause.map(|wc| &wc.predicates)}
+            {
+                #(for (ident, ty) in leak_trait_impl.iter()) {
+                    type #ident = #ty;
+                }
+            }
+        },
+        parse_quote!(#leak_trait_name #ty_generics),
+    )
 }
 
 pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
@@ -63,29 +108,23 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     }
     let nonce = crate::random();
     let crate_path = &arg.newer_type;
-    let implementor = arg.implementor.clone().unwrap_or(parse_quote!(Dummy));
     let mut leaker = Leaker::from_trait(
         &input_cloned,
-        Box::new(move |args| {
-            if let PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) = args
-            {
-                let ty = type_leak::encode_generics_to_ty(&args);
-                parse_quote!(#implementor <#ty>)
-            } else {
-                panic!()
-            }
-        }),
     )
-    .unwrap_or_else(|NotInternableError(span)| abort!(span, "Not supported"));
+    .unwrap_or_else(|NotInternableError(span)| abort!(span, "cannot intern this element"; hint = "use absolute path instead"));
     leaker.reduce_roots();
-    let (item_impls, referrer) = leaker.finish(|n| parse_quote!(#crate_path::Repeater<#nonce, #n>));
-    if !referrer.is_empty() && arg.implementor.is_none() {
-        abort!(Span::call_site(), "Argument 'implementor' is required")
-    }
+    let referrer = leaker.finish();
     if let Some(unsafety) = &input.unsafety {
-        abort!(&unsafety, "Cannot apply #[target] to unsafe traits");
+        abort!(&unsafety, "Cannot apply #[target] on unsafe traits");
     }
+    let leak_trait_name = Ident::new(
+        &format!("NewerTypeInternalTrait_{}", nonce),
+        Span::call_site(),
+    );
+    let (internal_trait, supertrait) =
+        emit_internal_trait(&input, &leak_trait_name, &referrer, nonce);
     let mut output = input.clone();
+    output.supertraits.push(supertrait);
     if let Some(mut alternative) = arg.alternative.clone() {
         let last_seg = alternative.segments.iter_mut().next_back().unwrap();
         let mut args = AngleBracketedGenericArguments {
@@ -117,11 +156,11 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
         }));
         output.items = Vec::new();
         output.unsafety = Some(Default::default());
-        output.attrs.push(parse_quote!(#[doc = "# Safety"]));
-        output.attrs.push(parse_quote!(#[doc = ""]));
+        output.attrs.push(parse_quote!(#[doc = " # Safety"]));
+        output.attrs.push(parse_quote!(#[doc = " "]));
         output
             .attrs
-            .push(parse_quote!(#[doc = "should be implemented by [`newer_type::implement`]"]));
+            .push(parse_quote!(#[doc = " should be implemented by [`newer_type::implement`]"]));
     }
 
     let temporal_mac_name =
@@ -143,7 +182,9 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
         }
         #[doc(hidden)]
         #{&input.vis} use #temporal_mac_name as #{&input.ident};
-        #(#item_impls)*
+        #[allow(private_bounds)]
+        #[allow(clippy::missing_safety_doc)]
         #output
+        #internal_trait
     }
 }

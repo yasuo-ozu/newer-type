@@ -2,7 +2,7 @@
 name = "newer-type"
 description = "Support defining newtype wrapper with inheriting trait implementations"
 authors = ["Yasuo Ozu <yasuo@ozu.email>"]
-version = "0.1.1"
+version = "0.1.2"
 repository = "https://github.com/yasuo-ozu/newer-type"
 edition = "2021"
 license = "MIT"
@@ -16,7 +16,7 @@ categories = ["rust-patterns", "data-structures"]
 path = "lib.rs"
 
 [dependencies]
-newer-type-macro = { path = "macro", version = "0.1.1" }
+newer-type-macro = { path = "macro", version = "0.1.2" }
 
 [workspace]
 members = [".", "macro"]
