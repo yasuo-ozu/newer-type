@@ -1,5 +1,5 @@
 [package]
-name = "newer-type"
+name = "newer-type-std"
 description = "Support defining newtype wrapper with inheriting trait implementations"
 authors = ["Yasuo Ozu <yasuo@ozu.email>"]
 version = "0.1.2"
@@ -11,13 +11,5 @@ homepage = "https://github.com/yasuo-ozu/newer-type"
 keywords = ["newtype", "trait", "proc-macro", "attribute-macro"]
 categories = ["rust-patterns", "data-structures"]
 
-
-[lib]
-path = "lib.rs"
-
 [dependencies]
-newer-type-macro = { path = "macro", version = "0.1.2" }
-
-[workspace]
-members = [".", "macro", "std"]
-resolver = "2"
+newer-type = { path = "..", version = "0.1.2" }

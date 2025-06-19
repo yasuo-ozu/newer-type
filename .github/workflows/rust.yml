@@ -17,7 +17,8 @@ jobs:
     steps:
     - run: rustup default 1.65.0
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+    - name: Run tests for base crate
+      run: cargo test
+    - name: Run tests for std crate
+      run: cargo test --manifest-path std/Cargo.toml
+

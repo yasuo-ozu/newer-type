@@ -1,5 +1,4 @@
 use newer_type::{implement, target};
-use std::fmt::Debug;
 
 mod m {
     type T = usize;
@@ -21,7 +20,7 @@ impl m::MyNewTrait for String {
     where
         Self: 'a;
 
-    fn get<'a>(&'a self, a: usize) -> Self::MyType<'a> {
+    fn get<'a>(&'a self, _a: usize) -> Self::MyType<'a> {
         todo!()
     }
 }

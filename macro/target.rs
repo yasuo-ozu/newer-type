@@ -114,9 +114,6 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     .unwrap_or_else(|NotInternableError(span)| abort!(span, "cannot intern this element"; hint = "use absolute path instead"));
     leaker.reduce_roots();
     let referrer = leaker.finish();
-    if let Some(unsafety) = &input.unsafety {
-        abort!(&unsafety, "Cannot apply #[target] on unsafe traits");
-    }
     let leak_trait_name = Ident::new(
         &format!("NewerTypeInternalTrait_{}", nonce),
         Span::call_site(),
