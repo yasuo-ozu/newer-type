@@ -400,7 +400,7 @@ trait EmitImpl: Sized + Clone {
                 let mut cnt = 0usize;
                 update_pat_names(pat.as_mut(), &mut |span| {
                     cnt += 1;
-                    Ident::new(&format!("__newer_type_arg_{}_{}", nonce, cnt), span)
+                    Ident::new(&format!("__newer_type_arg_{nonce}_{cnt}"), span)
                 })
             }
         }
@@ -644,7 +644,7 @@ trait EmitImpl: Sized + Clone {
                 trait_modifier.self_assoc_tys.remove(&ttyp.ident);
                 let (impl_generics, ty_generics, where_clause) = ttyp.generics.split_for_impl();
                 if pred_tys.len() != 1 {
-                    if ttyp.generics.params.len() == 0 && where_clause.is_none() {
+                    if ttyp.generics.params.is_empty() && where_clause.is_none() {
                         let new_tp = Ident::new(&format!("ASSOC_{}_{}", &ttyp.ident,nonce),ttyp.ident.span());
                         let assoc_ty = &ttyp.ident;
                         implr_args.push(parse_quote! {#assoc_ty = #new_tp});
@@ -817,7 +817,7 @@ impl EmitImpl for ItemStruct {
         mut f: impl FnMut(&[Ident]) -> TokenStream,
     ) -> TokenStream {
         let pred_params = (0..preds.len())
-            .map(|i| Ident::new(&format!("__newer_type_pred_param_{}", i), Span::call_site()))
+            .map(|i| Ident::new(&format!("__newer_type_pred_param_{i}"), Span::call_site()))
             .collect::<Vec<_>>();
         let (n, pred_field) = find_pred_field(implementor, &self.fields);
         quote! {

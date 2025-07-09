@@ -46,7 +46,7 @@ fn emit_internal_trait(
     referrer: &Referrer,
     nonce: u64,
 ) -> (TokenStream, TypeParamBound) {
-    let self_type = Ident::new(&format!("__NewerTypeSelf{}", nonce), Span::call_site());
+    let self_type = Ident::new(&format!("__NewerTypeSelf{nonce}"), Span::call_site());
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     let leak_trait_impl: Vec<_> = referrer
         .iter()
@@ -54,7 +54,7 @@ fn emit_internal_trait(
         .map(|(n, ty)| {
             (
                 Ident::new(
-                    &format!("__NewerTypeLeakedType_{}_{}", nonce, n),
+                    &format!("__NewerTypeLeakedType_{nonce}_{n}"),
                     Span::call_site(),
                 ),
                 ty.clone(),
@@ -115,7 +115,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     leaker.reduce_roots();
     let referrer = leaker.finish();
     let leak_trait_name = Ident::new(
-        &format!("NewerTypeInternalTrait_{}", nonce),
+        &format!("NewerTypeInternalTrait_{nonce}"),
         Span::call_site(),
     );
     let (internal_trait, supertrait) =
@@ -160,8 +160,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
             .push(parse_quote!(#[doc = " should be implemented by [`newer_type::implement`]"]));
     }
 
-    let temporal_mac_name =
-        Ident::new(&format!("__newer_type_macro__{}", nonce), Span::call_site());
+    let temporal_mac_name = Ident::new(&format!("__newer_type_macro__{nonce}"), Span::call_site());
     quote! {
         #[doc(hidden)]
         #[macro_export]
