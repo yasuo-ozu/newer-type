@@ -40,62 +40,48 @@ impl syn::parse::Parse for Argument {
     }
 }
 
-fn emit_internal_trait(
+fn emit_repeater_impl(
     input: &ItemTrait,
-    leak_trait_name: &Ident,
     referrer: &Referrer,
+    repeater: &Path,
     nonce: u64,
-) -> (TokenStream, TypeParamBound) {
+) -> TokenStream {
     let self_type = Ident::new(&format!("__NewerTypeSelf{nonce}"), Span::call_site());
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
-    let leak_trait_impl: Vec<_> = referrer
+    let generic_args = input
+        .generics
+        .params
+        .iter()
+        .map(|param| match param {
+            GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                GenericArgument::Lifetime(lifetime.clone())
+            }
+            GenericParam::Type(TypeParam { ident, .. }) => {
+                GenericArgument::Type(parse_quote!(#ident))
+            }
+            GenericParam::Const(ConstParam { ident, .. }) => {
+                GenericArgument::Const(parse_quote!(#ident))
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut impl_generics = input.generics.params.clone();
+    impl_generics.push(GenericParam::Type(parse_quote!(#self_type)));
+    let encoded_generics = type_leak::encode_generics_to_ty(&generic_args);
+    referrer
         .iter()
         .enumerate()
         .map(|(n, ty)| {
-            (
-                Ident::new(
-                    &format!("__NewerTypeLeakedType_{nonce}_{n}"),
-                    Span::call_site(),
-                ),
-                ty.clone(),
-            )
+            quote! {
+                impl < #impl_generics > #repeater<#n, #encoded_generics> for #self_type
+                where
+                    Self: #{&input.ident} #ty_generics,
+                    #{where_clause.map(|wc| &wc.predicates)}
+                {
+                    type Type = #ty;
+                }
+            }
         })
-        .collect();
-    let mut impl_generics = input.generics.params.clone();
-    for param in impl_generics.iter_mut() {
-        match param {
-            GenericParam::Type(type_param) => {
-                type_param.eq_token = None;
-                type_param.default = None;
-            }
-            GenericParam::Const(const_param) => {
-                const_param.eq_token = None;
-                const_param.default = None;
-            }
-            _ => (),
-        }
-    }
-    impl_generics.push(GenericParam::Type(parse_quote!(#self_type)));
-    (
-        quote! {
-            #[doc(hidden)]
-            pub trait #leak_trait_name #{&input.generics} #where_clause {
-                #(for (ident, _) in leak_trait_impl.iter()) {
-                    type #ident: ?::core::marker::Sized;
-                }
-            }
-            impl < #impl_generics > #leak_trait_name #ty_generics for #self_type
-            where
-                Self: #{&input.ident} #ty_generics,
-                #{where_clause.map(|wc| &wc.predicates)}
-            {
-                #(for (ident, ty) in leak_trait_impl.iter()) {
-                    type #ident = #ty;
-                }
-            }
-        },
-        parse_quote!(#leak_trait_name #ty_generics),
-    )
+        .collect()
 }
 
 pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
@@ -114,14 +100,9 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     .unwrap_or_else(|NotInternableError(span)| abort!(span, "cannot intern this element"; hint = "use absolute path instead"));
     leaker.reduce_roots();
     let referrer = leaker.finish();
-    let leak_trait_name = Ident::new(
-        &format!("NewerTypeInternalTrait_{nonce}"),
-        Span::call_site(),
-    );
-    let (internal_trait, supertrait) =
-        emit_internal_trait(&input, &leak_trait_name, &referrer, nonce);
+    let repeater = parse_quote!(#crate_path::Repeater);
+    let repeater_impl = emit_repeater_impl(&input, &referrer, &repeater, nonce);
     let mut output = input.clone();
-    output.supertraits.push(supertrait);
     if let Some(mut alternative) = arg.alternative.clone() {
         let last_seg = alternative.segments.iter_mut().next_back().unwrap();
         let mut args = AngleBracketedGenericArguments {
@@ -181,6 +162,6 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
         #[allow(private_bounds)]
         #[allow(clippy::missing_safety_doc)]
         #output
-        #internal_trait
+        #repeater_impl
     }
 }

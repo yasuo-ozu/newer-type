@@ -18,7 +18,7 @@ The `newer-type` crate provides a procedural macro `#[implement(...)]` to reduce
 The `#[implement(...)]` macro currently supports automatic implementations for:
 
 - User-defined traits annotated with `#[target]`
-- Some common traits from `std`, see [`newer_type::traits`](https://docs.rs/newer-type/latest/newer_type/traits/index.html)
+- Many traits from Rust `std`, see [`newer_type_std`](https://docs.rs/newer-type-std/latest/newer_type-std/index.html) crate documentation
 
 ## Example
 
@@ -70,9 +70,9 @@ That's it! The selected traits are automatically implemented for you.
 In order to implement traits defined in Rust's standard library for your newtype, there are empty definitions
 in `newer_type::traits` namespace. You can pick up traits to be implemented from it.
 
-```rust
+```rust,ignore
 # use newer_type::implement;
-use newer_type::traits::{IntoIterator, Extend, PartialEq, Eq};
+use newer_type_std::{iter::IntoIterator, iter::Extend, cmp::PartialEq, cmp::Eq};
 
 #[implement(IntoIterator, Extend<T>, PartialEq, Eq)]
 struct MyVec<T>(Vec<T>);

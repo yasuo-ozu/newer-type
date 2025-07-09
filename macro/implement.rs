@@ -8,7 +8,7 @@ use template_quote::{quote, ToTokens};
 
 pub struct Output {
     pub implementor: Implementor,
-    pub target_def: TargetDef,
+    pub target_def: Adt,
 }
 
 impl syn::parse::Parse for Output {
@@ -111,7 +111,7 @@ impl syn::parse::Parse for Implementor {
 }
 
 impl Implementor {
-    fn emit_impl(&self, target_def: &TargetDef) -> TokenStream {
+    fn emit_impl(&self, target_def: &Adt) -> TokenStream {
         let input = Output {
             implementor: self.clone(),
             target_def: target_def.clone(),
@@ -144,12 +144,12 @@ impl Argument {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum TargetDef {
+pub enum Adt {
     Enum(ItemEnum),
     Struct(ItemStruct),
 }
 
-impl syn::parse::Parse for TargetDef {
+impl syn::parse::Parse for Adt {
     fn parse(input: parse::ParseStream) -> Result<Self> {
         if input.fork().parse::<ItemEnum>().is_ok() {
             Ok(Self::Enum(input.parse()?))
@@ -159,16 +159,23 @@ impl syn::parse::Parse for TargetDef {
     }
 }
 
-impl template_quote::ToTokens for TargetDef {
+impl template_quote::ToTokens for Adt {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            TargetDef::Enum(item_enum) => item_enum.to_tokens(tokens),
-            TargetDef::Struct(item_struct) => item_struct.to_tokens(tokens),
+            Adt::Enum(item_enum) => item_enum.to_tokens(tokens),
+            Adt::Struct(item_struct) => item_struct.to_tokens(tokens),
         }
     }
 }
 
-impl TargetDef {
+impl Adt {
+    pub fn generics_mut(&mut self) -> &mut Generics {
+        match self {
+            Adt::Enum(item_enum) => &mut item_enum.generics,
+            Adt::Struct(item_struct) => &mut item_struct.generics,
+        }
+    }
+
     fn collect_implementors(&mut self) -> Vec<Implementor> {
         let mut ret = Vec::new();
         let mut proceed_field = |field: &mut Field| {
@@ -191,14 +198,14 @@ impl TargetDef {
                 .collect();
         };
         match self {
-            TargetDef::Enum(item_enum) => {
+            Adt::Enum(item_enum) => {
                 for variant in item_enum.variants.iter_mut() {
                     for field in variant.fields.iter_mut() {
                         proceed_field(field);
                     }
                 }
             }
-            TargetDef::Struct(item_struct) => {
+            Adt::Struct(item_struct) => {
                 for field in item_struct.fields.iter_mut() {
                     proceed_field(field);
                 }
@@ -208,7 +215,7 @@ impl TargetDef {
     }
 }
 
-pub fn implement(arg: &Argument, target_def: &TargetDef) -> TokenStream {
+pub fn implement(arg: &Argument, target_def: &Adt) -> TokenStream {
     let mut copied_target_def = target_def.clone();
     let imp: TokenStream = copied_target_def
         .collect_implementors()

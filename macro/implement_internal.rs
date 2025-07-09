@@ -1,5 +1,5 @@
 use crate::implement::{
-    Argument as ImplementArgument, Implementor, Output as ImplementOutput, TargetDef,
+    Adt, Argument as ImplementArgument, Implementor, Output as ImplementOutput,
 };
 use proc_macro2::{Span, TokenStream};
 use proc_macro_error::abort;
@@ -15,7 +15,7 @@ use type_leak::Referrer;
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Input {
     pub implementor: Implementor,
-    pub target_def: TargetDef,
+    pub adt: Adt,
     pub trait_def: ItemTrait,
     pub alternative: Option<Path>,
     pub newer_type: Path,
@@ -48,7 +48,7 @@ impl syn::parse::Parse for Input {
         if input.is_empty() {
             Ok(Self {
                 implementor,
-                target_def,
+                adt: target_def,
                 trait_def,
                 alternative,
                 newer_type,
@@ -65,7 +65,7 @@ impl template_quote::ToTokens for Input {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let impl_output = ImplementOutput {
             implementor: self.implementor.clone(),
-            target_def: self.target_def.clone(),
+            target_def: self.adt.clone(),
         };
         tokens.extend(quote! {(#impl_output)});
         self.trait_def.to_tokens(tokens);
@@ -467,7 +467,6 @@ trait EmitImpl: Sized + Clone {
     fn modify_self(self, modifier: &mut ModifyGenerics) -> Self;
 
     fn emit_impl(&self, input: &Input) -> TokenStream {
-        let nonce = crate::random();
         let mut path = input
             .alternative
             .clone()
@@ -498,26 +497,6 @@ trait EmitImpl: Sized + Clone {
             .map(|(_, g)| g.params.iter().cloned().collect::<Vec<_>>())
             .unwrap_or_default();
         let mut implementor = input.implementor.clone();
-        let mut implr_modifier: ModifyGenerics = Default::default();
-        for p in impl_params.iter_mut() {
-            match p {
-                GenericParam::Lifetime(lt) => {
-                    implr_modifier.append_lifetime(&mut lt.lifetime, nonce)
-                }
-                GenericParam::Type(TypeParam { ident, .. }) => {
-                    implr_modifier.append_type(ident, nonce)
-                }
-                GenericParam::Const(ConstParam { ident, .. }) => {
-                    implr_modifier.append_const(ident, nonce)
-                }
-            }
-        }
-        if let Some((_, generics)) = &mut implementor.generics {
-            implr_modifier.visit_generics_mut(generics);
-            type_modifier.visit_generics_mut(generics);
-        }
-        implr_modifier.visit_path_mut(&mut implementor.path);
-        type_modifier.visit_path_mut(&mut implementor.path);
 
         let trait_ty_generics = implementor
             .path
@@ -861,19 +840,158 @@ impl EmitImpl for ItemStruct {
 }
 
 impl Input {
+    fn modify_implr_generics(&mut self, nonce: u64) {
+        if let Some(implr_generics) = &mut self.implementor.generics {
+            let mut implr_modifier: ModifyGenerics = Default::default();
+            for p in implr_generics.1.params.iter_mut() {
+                match p {
+                    GenericParam::Lifetime(lt) => {
+                        implr_modifier.append_lifetime(&mut lt.lifetime, nonce)
+                    }
+                    GenericParam::Type(TypeParam { ident, .. }) => {
+                        implr_modifier.append_type(ident, nonce)
+                    }
+                    GenericParam::Const(ConstParam { ident, .. }) => {
+                        implr_modifier.append_const(ident, nonce)
+                    }
+                }
+            }
+            implr_modifier.visit_path_mut(&mut self.implementor.path);
+        }
+    }
+
+    fn modify_adt_generics(&mut self, nonce: u64) {
+        let adt_generics = self.adt.generics_mut();
+        let mut type_modifier: ModifyGenerics = Default::default();
+        for param in &mut adt_generics.params {
+            match param {
+                GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                    type_modifier.append_lifetime(lifetime, nonce + 1)
+                }
+                GenericParam::Type(TypeParam { ident, .. }) => {
+                    type_modifier.append_type(ident, nonce + 1)
+                }
+                GenericParam::Const(ConstParam { ident, .. }) => {
+                    type_modifier.append_const(ident, nonce + 1)
+                }
+            }
+        }
+        if let Some((_, implr_generics)) = &mut self.implementor.generics {
+            type_modifier.visit_generics_mut(implr_generics);
+        }
+        type_modifier.visit_path_mut(&mut self.implementor.path);
+        match &mut self.adt {
+            Adt::Enum(item_enum) => type_modifier.visit_item_enum_mut(item_enum),
+            Adt::Struct(item_struct) => type_modifier.visit_item_struct_mut(item_struct),
+        }
+    }
+
+    fn modify_trait_generics(&mut self) {
+        let mut trait_modifier: ModifyGenerics = Default::default();
+        let implr_args = self.trait_ty_generics().unwrap_or_default();
+        for (i, tr_arg) in self.trait_def.generics.params.iter().enumerate() {
+            if let Some(implr_arg) = implr_args.get(i) {
+                match (tr_arg, implr_arg) {
+                    (
+                        GenericParam::Lifetime(LifetimeParam { lifetime, .. }),
+                        GenericArgument::Lifetime(lt1),
+                    ) => {
+                        trait_modifier
+                            .lifetime_map
+                            .insert(lifetime.clone(), lt1.clone());
+                    }
+                    (GenericParam::Type(TypeParam { ident, .. }), GenericArgument::Type(t1)) => {
+                        trait_modifier.type_map.insert(ident.clone(), t1.clone());
+                    }
+                    (GenericParam::Const(ConstParam { ident, .. }), GenericArgument::Const(c1)) => {
+                        trait_modifier.const_map.insert(ident.clone(), c1.clone());
+                    }
+                    _ => {
+                        abort!(implr_arg, "cannot assign this argument"; hint = tr_arg.span() => "param definition is here")
+                    }
+                }
+            } else {
+                match tr_arg {
+                    GenericParam::Type(TypeParam {
+                        ident,
+                        eq_token: Some(_),
+                        default: Some(ty),
+                        ..
+                    }) => {
+                        trait_modifier.type_map.insert(ident.clone(), ty.clone());
+                    }
+                    GenericParam::Const(ConstParam {
+                        ident,
+                        eq_token: Some(_),
+                        default: Some(expr),
+                        ..
+                    }) => {
+                        trait_modifier.const_map.insert(ident.clone(), expr.clone());
+                    }
+                    GenericParam::Type(TypeParam { ident, .. })
+                    | GenericParam::Const(ConstParam { ident, .. }) => {
+                        abort!(
+                            &implr_args, "parameter '{}' is not specified for trait {}", ident, &self.trait_def.ident;
+                            hint = ident.span() => "defined here";
+                        );
+                    }
+                    GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
+                        abort!(
+                            &implr_args, "lifetime parameter '{}' is not specified", &lifetime;
+                            hint = lifetime.span() => "defined here";
+                        );
+                    }
+                }
+            }
+        }
+        if let Some((_, implr_generics)) = &mut self.implementor.generics {
+            trait_modifier.visit_generics_mut(implr_generics);
+        }
+        for item in self.trait_def.items.iter_mut() {
+            trait_modifier.visit_trait_item_mut(item);
+        }
+        for supertrait in self.trait_def.supertraits.iter_mut() {
+            trait_modifier.visit_type_param_bound_mut(supertrait);
+        }
+    }
+
+    fn modify_leaked_tys(&mut self) {
+        let newer_type = &self.newer_type;
+        let encoded_generics =
+            type_leak::encode_generics_to_ty(self.trait_ty_generics().iter().flatten());
+        let mut visitor = self.referrer.clone().into_visitor(|_, id| {
+            let repeater: Path = parse_quote!(#newer_type::Repeater<#id, #encoded_generics>);
+            parse_quote!(<Self as #repeater<#id, #repeater>>::Type)
+        });
+        visitor.visit_item_trait_mut(&mut self.trait_def);
+    }
+
+    fn trait_ty_generics(&self) -> Option<Punctuated<GenericArgument, Token![,]>> {
+        match &self
+            .implementor
+            .path
+            .segments
+            .last()
+            .unwrap_or_else(|| abort!(&self.implementor, "Path without segments is not supported"))
+            .arguments
+        {
+            PathArguments::None => None,
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+                Some(args.clone())
+            }
+            _ => abort!(&self.implementor, "bad generic arguments"),
+        }
+    }
+
     pub fn implement_internal(&self) -> TokenStream {
         let mut input = self.clone();
-        let mut visitor = self.referrer.clone().into_visitor(|_, id| {
-            let ident = Ident::new(
-                &format!("__NewerTypeLeakedType_{}_{}", self.nonce, id),
-                Span::call_site(),
-            );
-            parse_quote!(Self::#ident)
-        });
-        visitor.visit_item_trait_mut(&mut input.trait_def);
-        match &self.target_def {
-            TargetDef::Enum(item_enum) => item_enum.emit_impl(&input),
-            TargetDef::Struct(item_struct) => item_struct.emit_impl(&input),
+        let nonce = crate::random();
+        input.modify_implr_generics(nonce);
+        input.modify_adt_generics(nonce);
+        input.modify_leaked_tys();
+        match &self.adt {
+            Adt::Enum(item_enum) => item_enum.emit_impl(&input),
+            Adt::Struct(item_struct) => item_struct.emit_impl(&input),
         }
     }
 }
