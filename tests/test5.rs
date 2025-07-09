@@ -11,6 +11,7 @@ mod m {
     }
 }
 
+#[allow(unused)]
 #[implement(m::MyNewTrait)]
 struct MyWrapper(String);
 
@@ -20,6 +21,7 @@ impl m::MyNewTrait for String {
     where
         Self: 'a;
 
+    #[allow(unused)]
     fn get<'a>(&'a self, _a: usize) -> Self::MyType<'a> {
         todo!()
     }

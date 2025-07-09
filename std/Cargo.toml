@@ -9,7 +9,11 @@ license = "MIT"
 rust-version = "1.65.0"
 homepage = "https://github.com/yasuo-ozu/newer-type"
 keywords = ["newtype", "trait", "proc-macro", "attribute-macro"]
-categories = ["rust-patterns", "data-structures"]
+categories = ["rust-patterns", "data-structures", "no-std"]
 
 [dependencies]
 newer-type = { path = "..", version = "0.1.2" }
+
+[features]
+default = ["std"]
+std = []

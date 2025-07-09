@@ -1,3 +1,5 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 pub mod alloc;
 pub mod borrow;
 pub mod cmp;
@@ -6,12 +8,17 @@ pub mod error;
 pub mod fmt;
 pub mod future;
 pub mod hash;
+#[cfg(feature = "std")]
 pub mod io;
 pub mod iter;
+#[cfg(feature = "std")]
 pub mod net;
 pub mod ops;
+#[cfg(feature = "std")]
 pub mod process;
+#[cfg(feature = "std")]
 pub mod string;
+#[cfg(feature = "std")]
 pub mod task;
 
 pub use newer_type;
@@ -26,11 +33,13 @@ macro_rules! emit_traits {
         )?
         $(#[doc = $doc1:literal])*
         #[target(alternative = $alternative:path)]
+        $(#[$($other_attr:tt)*])*
         pub trait $trait_name:ident $([$($trait_params:tt)+])? $(: [$($supertraits:tt)*])?
         $(where [$($where_clause:tt)*])?
         {$($trait_contents:tt)*}
         $($t:tt)*
     ) => {
+        $(#[$($other_attr)*])*
         #[target(alternative = $alternative, newer_type = $crate::newer_type)]
         $(
             #[doc = $doc0]
