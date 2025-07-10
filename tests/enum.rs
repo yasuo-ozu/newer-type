@@ -1,8 +1,12 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
+pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
+    type Type;
+}
+
 // 1. Enum に対して `#[implement]` を適用する基本例
-#[target]
+#[target(repeater = Repeater)]
 trait BasicEnumTrait {
     fn value(&self) -> i32;
 }
@@ -35,7 +39,7 @@ fn test_basic_enum_trait() {
 }
 
 // 2. 名前付きフィールドを持つ Enum のトレイト実装
-#[target]
+#[target(repeater = Repeater)]
 trait NamedEnumTrait {
     fn sum(&self) -> i32;
 }
@@ -74,16 +78,16 @@ fn test_named_enum_trait() {
 }
 
 // 3. ジェネリクスを含む Enum のトレイト実装
-#[target]
+#[target(repeater = Repeater)]
 trait GenericEnumTrait<T> {
     fn describe(&self) -> String;
 }
 
 #[derive(Debug, Clone, PartialEq)]
 #[implement]
-enum GenericEnum<T: Clone + Debug> {
-    First(#[implement(GenericEnumTrait<T>)] T),
-    Second(#[implement(GenericEnumTrait<T>)] T),
+enum GenericEnum<U: Clone + Debug> {
+    First(#[implement(GenericEnumTrait<U>)] U),
+    Second(#[implement(GenericEnumTrait<U>)] U),
 }
 
 impl<T: Clone + Debug> GenericEnumTrait<T> for T {
@@ -107,7 +111,7 @@ fn test_generic_enum_trait() {
 }
 
 // 4. 複雑なフィールドを持つ Enum のトレイト実装
-#[target]
+#[target(repeater = Repeater)]
 trait ComplexEnumTrait {
     fn compute(&self) -> i32;
 }
@@ -148,7 +152,7 @@ fn test_complex_enum_trait() {
     }
 }
 // 5. ネストした型を持つ Enum のトレイト実装
-#[target]
+#[target(repeater = Repeater)]
 trait NestedEnumTrait {
     fn nested_value(&self) -> i32;
 }
@@ -174,7 +178,7 @@ fn test_nested_enum_trait() {
 }
 
 // 6. 複数の `#[implement]` を持つ Enum のトレイト実装
-#[target]
+#[target(repeater = Repeater)]
 trait MultiImplementTrait {
     fn double(&self) -> i32;
 }

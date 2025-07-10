@@ -14,7 +14,7 @@ macro_rules! impl_global_alloc {
         ///     slot: std::alloc::System
         /// }
         /// ```
-        #[target(alternative = ::core::alloc::GlobalAlloc, newer_type = $crate::newer_type)]
+        #[target(alternative = ::core::alloc::GlobalAlloc, newer_type = $crate::newer_type, repeater = $crate::Repeater)]
         pub unsafe trait GlobalAlloc {
             unsafe fn alloc(&self, layout: ::core::alloc::Layout) -> *mut ::core::primitive::u8;
 

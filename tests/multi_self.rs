@@ -1,9 +1,13 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
+pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
+    type Type;
+}
+
 // 1. トレイト関数のシグネチャとして複数の `Self` を持つが、戻り値に `Self`
 //    を含まない
-#[target]
+#[target(repeater = Repeater)]
 trait MultiSelfArgTrait {
     fn process(self, other: Self, reference: &Self, mutable: &mut Self) -> i32;
     fn process_no_receiver(other: Self, reference: &Self) -> bool;

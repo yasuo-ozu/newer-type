@@ -20,6 +20,7 @@ pub struct Input {
     pub alternative: Option<Path>,
     pub newer_type: Path,
     pub referrer: Referrer,
+    pub repeater: Path,
     pub nonce: u64,
 }
 
@@ -43,6 +44,8 @@ impl syn::parse::Parse for Input {
         input.parse::<Token![,]>()?;
         let referrer = input.parse()?;
         input.parse::<Token![,]>()?;
+        let repeater = input.parse()?;
+        input.parse::<Token![,]>()?;
         let nonce: LitInt = input.parse()?;
         let _ = input.parse::<Token![,]>();
         if input.is_empty() {
@@ -53,6 +56,7 @@ impl syn::parse::Parse for Input {
                 alternative,
                 newer_type,
                 referrer,
+                repeater,
                 nonce: nonce.base10_parse()?,
             })
         } else {
@@ -73,6 +77,8 @@ impl template_quote::ToTokens for Input {
         self.alternative.to_tokens(tokens);
         <Token![,]>::default().to_tokens(tokens);
         self.referrer.to_tokens(tokens);
+        <Token![,]>::default().to_tokens(tokens);
+        self.repeater.to_tokens(tokens);
         <Token![,]>::default().to_tokens(tokens);
         tokens.extend(quote! {#{self.nonce}})
     }
@@ -112,11 +118,36 @@ where
 }
 
 #[derive(Default, Clone, Debug)]
+struct CorrectAssocTys(HashSet<Ident>);
+
+impl visit::Visit<'_> for CorrectAssocTys {
+    fn visit_type(&mut self, i: &Type) {
+        if let Type::Path(TypePath {
+            qself: None,
+            path:
+                Path {
+                    leading_colon: None,
+                    segments,
+                },
+        }) = i
+        {
+            if segments.len() == 2
+                && &segments[0].ident == "Self"
+                && segments[0].arguments == PathArguments::None
+            {
+                self.0.insert(segments[1].ident.clone());
+            }
+        } else {
+            syn::visit::visit_type(self, i);
+        }
+    }
+}
+
+#[derive(Default, Clone, Debug)]
 struct ModifyGenerics {
     lifetime_map: HashMap<Lifetime, Lifetime>,
     const_map: HashMap<Ident, Expr>,
     type_map: HashMap<Ident, Type>,
-    self_assoc_tys: HashSet<Ident>,
 }
 
 impl ModifyGenerics {
@@ -164,21 +195,27 @@ impl ModifyGenerics {
 }
 
 impl VisitMut for ModifyGenerics {
-    // fn visit_path_mut(&mut self, i: &mut Path) {
-    //     match (i.segments.len(), i.segments.last_mut()) {
-    //         (
-    //             1,
-    //             Some(PathSegment {
-    //                 ident,
-    //                 arguments: PathArguments::None,
-    //             }),
-    //         ) if i.leading_colon.is_none() => {}
-    //         (_, Some(PathSegment { arguments, .. })) => {
-    //             syn::visit_mut::visit_path_arguments_mut(self, arguments)
-    //         }
-    //         _ => (),
-    //     }
-    // }
+    fn visit_attribute_mut(&mut self, i: &mut syn::Attribute) {
+        if let Ok(Some(mut implr_arg)) = ImplementArgument::from_attr(i) {
+            for implr in implr_arg.implementors.iter_mut() {
+                if let Some((_, generics)) = &implr.generics {
+                    let mut m = self.filter_generics(generics);
+                    visit_mut::visit_path_mut(&mut m, &mut implr.path);
+                } else {
+                    visit_mut::visit_path_mut(self, &mut implr.path);
+                }
+            }
+            *i = parse_quote!(#[implement(#implr_arg)]);
+        }
+    }
+
+    fn visit_trait_item_fn_mut(&mut self, i: &mut syn::TraitItemFn) {
+        for attr in &mut i.attrs {
+            self.visit_attribute_mut(attr);
+        }
+        self.visit_signature_mut(&mut i.sig);
+        // ignore default body
+    }
 
     fn visit_type_mut(&mut self, i: &mut Type) {
         match i {
@@ -193,22 +230,6 @@ impl VisitMut for ModifyGenerics {
             _ => (),
         }
         visit_mut::visit_type_mut(self, i);
-        if let Type::Path(TypePath {
-            qself: None,
-            path:
-                Path {
-                    leading_colon: None,
-                    segments,
-                },
-        }) = i
-        {
-            if segments.len() == 2
-                && &segments[0].ident == "Self"
-                && segments[0].arguments == PathArguments::None
-            {
-                self.self_assoc_tys.insert(segments[1].ident.clone());
-            }
-        }
     }
 
     fn visit_expr_mut(&mut self, i: &mut Expr) {
@@ -245,13 +266,11 @@ impl VisitMut for ModifyGenerics {
     fn visit_item_struct_mut(&mut self, i: &mut ItemStruct) {
         let mut m = self.filter_generics(&i.generics);
         visit_mut::visit_item_struct_mut(&mut m, i);
-        self.self_assoc_tys.extend(m.self_assoc_tys);
     }
 
     fn visit_item_enum_mut(&mut self, i: &mut ItemEnum) {
         let mut m = self.filter_generics(&i.generics);
         visit_mut::visit_item_enum_mut(&mut m, i);
-        self.self_assoc_tys.extend(m.self_assoc_tys);
     }
 }
 
@@ -372,10 +391,10 @@ fn update_pat_names(pat: &mut Pat, f: &mut impl FnMut(Span) -> Ident) {
     }
 }
 
-trait EmitImpl: Sized + Clone {
+trait EmitImpl: Sized + Clone + template_quote::ToTokens {
     fn emit_trait_const(
         &self,
-        trait_: &TokenStream,
+        trait_: &Path,
         implementor: &Implementor,
         input: &TraitItemConst,
     ) -> TokenStream {
@@ -390,10 +409,11 @@ trait EmitImpl: Sized + Clone {
 
     fn emit_trait_fn(
         &self,
-        trait_: &TokenStream,
+        trait_: &Path,
         implementor: &Implementor,
         mut input: TraitItemFn,
         nonce: u64,
+        leaked_ty_visitor: &mut impl VisitMut,
     ) -> TokenStream {
         for param in input.sig.inputs.iter_mut() {
             if let FnArg::Typed(PatType { pat, .. }) = param {
@@ -405,8 +425,6 @@ trait EmitImpl: Sized + Clone {
             }
         }
         let (impl_generics, _, where_clause) = input.sig.generics.split_for_impl();
-        // let (pred_ix, pred_ident, pred_ref_tokens) =
-        // find_pred_param(&input.sig.inputs)
         let preds = find_pred_param(&input.sig.inputs);
         if preds.is_empty() {
             abort!(&input.sig.inputs, "no `Self` type is found"; hint = "exact one `self` type is required in parameters");
@@ -419,6 +437,8 @@ trait EmitImpl: Sized + Clone {
                 abort!(reason, "`Self` type is not allowed in return position");
             }
         }
+        let mut sig = input.sig.clone();
+        leaked_ty_visitor.visit_signature_mut(&mut sig);
         let body = self.emit_body(&preds, implementor, |pred_params| {
             let process_pat = |mut pat: Pat| -> Pat{
                 struct PatVisitor;
@@ -431,8 +451,8 @@ trait EmitImpl: Sized + Clone {
                 pat
             };
             quote! {
-                <_ as #trait_> :: #{&input.sig.ident} (
-                    #(for (i, param) in input.sig.inputs.iter().enumerate()), {
+                <_ as #trait_> :: #{&sig.ident} (
+                    #(for (i, param) in sig.inputs.iter().enumerate()), {
                         #(if let Some((_, pred_param)) = preds.iter().zip(pred_params).find(|((n, _, _), _)| &i == n)) {
                             #pred_param
                         }
@@ -464,9 +484,12 @@ trait EmitImpl: Sized + Clone {
 
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type>;
 
-    fn modify_self(self, modifier: &mut ModifyGenerics) -> Self;
-
-    fn emit_impl(&self, input: &Input) -> TokenStream {
+    fn emit_impl(
+        &self,
+        input: &Input,
+        nonce: u64,
+        leaked_ty_visitor: &mut impl VisitMut,
+    ) -> TokenStream {
         let mut path = input
             .alternative
             .clone()
@@ -474,102 +497,17 @@ trait EmitImpl: Sized + Clone {
         if let Some(last) = path.segments.last_mut() {
             last.arguments = PathArguments::None;
         }
-        let mut type_generics = self.generics().clone();
-        let mut type_modifier: ModifyGenerics = Default::default();
-        for param in &mut type_generics.params {
-            match param {
-                GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
-                    type_modifier.append_lifetime(lifetime, nonce + 1)
-                }
-                GenericParam::Type(TypeParam { ident, .. }) => {
-                    type_modifier.append_type(ident, nonce + 1)
-                }
-                GenericParam::Const(ConstParam { ident, .. }) => {
-                    type_modifier.append_const(ident, nonce + 1)
-                }
-            }
-        }
+        let adt_generics = self.generics();
         // Generics for `#[implement(for<GENERICS> MyStruct<GENERICS>)]``
-        let mut impl_params = input
-            .implementor
-            .generics
-            .as_ref()
-            .map(|(_, g)| g.params.iter().cloned().collect::<Vec<_>>())
-            .unwrap_or_default();
-        let mut implementor = input.implementor.clone();
-
-        let trait_ty_generics = implementor
-            .path
-            .segments
-            .last()
-            .unwrap_or_else(|| abort!(&input.implementor, "Path without segments is not supported"))
-            .arguments
-            .clone();
-
-        let mut trait_modifier: ModifyGenerics = Default::default();
-        let mut implr_args = match &trait_ty_generics {
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
-                args.iter().cloned().collect::<Vec<_>>()
-            }
-            PathArguments::None => vec![],
-            _ => unimplemented!(),
+        let trait_ty_generics = input.trait_ty_generics();
+        let trait_path: Path = if let Some(args) = &trait_ty_generics {
+            parse_quote!(#path<#args>)
+        } else {
+            path.clone()
         };
 
-        for (i, tr_arg) in input.trait_def.generics.params.iter().enumerate() {
-            if let Some(implr_arg) = implr_args.get(i) {
-                match (tr_arg, implr_arg) {
-                    (
-                        GenericParam::Lifetime(LifetimeParam { lifetime, .. }),
-                        GenericArgument::Lifetime(lt1),
-                    ) => {
-                        trait_modifier
-                            .lifetime_map
-                            .insert(lifetime.clone(), lt1.clone());
-                    }
-                    (GenericParam::Type(TypeParam { ident, .. }), GenericArgument::Type(t1)) => {
-                        trait_modifier.type_map.insert(ident.clone(), t1.clone());
-                    }
-                    (GenericParam::Const(ConstParam { ident, .. }), GenericArgument::Const(c1)) => {
-                        trait_modifier.const_map.insert(ident.clone(), c1.clone());
-                    }
-                    _ => {
-                        abort!(implr_arg, "cannot assign this argument"; hint = tr_arg.span() => "param definition is here")
-                    }
-                }
-            } else {
-                match tr_arg {
-                    GenericParam::Type(TypeParam {
-                        ident,
-                        eq_token: Some(_),
-                        default: Some(ty),
-                        ..
-                    }) => {
-                        trait_modifier.type_map.insert(ident.clone(), ty.clone());
-                    }
-                    GenericParam::Const(ConstParam {
-                        ident,
-                        eq_token: Some(_),
-                        default: Some(expr),
-                        ..
-                    }) => {
-                        trait_modifier.const_map.insert(ident.clone(), expr.clone());
-                    }
-                    GenericParam::Type(TypeParam { ident, .. })
-                    | GenericParam::Const(ConstParam { ident, .. }) => {
-                        abort!(
-                            &trait_ty_generics, "parameter '{}' is not specified for trait {}", ident, &input.trait_def.ident;
-                            hint = ident.span() => "defined here";
-                        );
-                    }
-                    GenericParam::Lifetime(LifetimeParam { lifetime, .. }) => {
-                        abort!(
-                            &trait_ty_generics, "lifetime parameter '{}' is not specified", &lifetime;
-                            hint = lifetime.span() => "defined here";
-                        );
-                    }
-                }
-            }
-        }
+        let mut correct_assoc_tys: CorrectAssocTys = Default::default();
+        correct_assoc_tys.visit_item_trait(&input.trait_def);
 
         let where_clause = input
             .implementor
@@ -577,40 +515,30 @@ trait EmitImpl: Sized + Clone {
             .as_ref()
             .and_then(|(_, g)| g.where_clause.clone())
             .map(|w| w.predicates.iter().cloned().collect::<Vec<_>>())
-            .unwrap_or_default()
-            .into_iter()
-            .map(|mut wp| {
-                trait_modifier.visit_where_predicate_mut(&mut wp);
-                wp
-            })
-            .collect::<Vec<_>>();
-        let impl_generics = merge_generic_params(type_generics.params.clone(), impl_params)
-            .collect::<Punctuated<_, Token![,]>>();
-        let mut trait_items = input.trait_def.items.clone();
-        let mut trait_supertraits = input.trait_def.supertraits.clone();
-        for item in trait_items.iter_mut() {
-            trait_modifier.visit_trait_item_mut(item);
-        }
-        for supertrait in trait_supertraits.iter_mut() {
-            trait_modifier.visit_type_param_bound_mut(supertrait);
-        }
-        let cloned_self = self.clone().modify_self(&mut type_modifier);
-        let pred_tys = self
-            .get_predicate_types(&implementor)
-            .into_iter()
-            .map(|mut ty| {
-                type_modifier.visit_type_mut(&mut ty);
-                ty
-            })
-            .collect::<Vec<_>>();
+            .unwrap_or_default();
+        let impl_generics = merge_generic_params(
+            adt_generics.params.clone(),
+            input
+                .implementor
+                .generics
+                .as_ref()
+                .map(|(_, g)| &g.params)
+                .into_iter()
+                .flatten()
+                .cloned(),
+        )
+        .collect::<Punctuated<_, Token![,]>>();
+        let pred_tys = self.get_predicate_types(&input.implementor);
         let mut impl_generics_modified = impl_generics.clone();
-        let items = trait_items.iter().map(|trait_item| match trait_item {
+        let mut implr_args = trait_ty_generics.clone().unwrap_or_default();
+        let items = input.trait_def.items.iter().map(|trait_item| match trait_item {
             TraitItem::Fn(tfn) => {
-                let tokens = cloned_self.emit_trait_fn(
-                    &quote!(#path #trait_ty_generics),
-                    &implementor,
+                let tokens = self.emit_trait_fn(
+                    &trait_path,
+                    &input.implementor,
                     tfn.clone(),
                     nonce,
+                    leaked_ty_visitor
                 );
                 quote! {
                     #(if &tfn.sig.ident == "ne") {
@@ -620,7 +548,9 @@ trait EmitImpl: Sized + Clone {
                 }
             }
             TraitItem::Type(ttyp) => {
-                trait_modifier.self_assoc_tys.remove(&ttyp.ident);
+                let mut ttyp = ttyp.clone();
+                leaked_ty_visitor.visit_trait_item_type_mut(&mut ttyp);
+                correct_assoc_tys.0.remove(&ttyp.ident);
                 let (impl_generics, ty_generics, where_clause) = ttyp.generics.split_for_impl();
                 if pred_tys.len() != 1 {
                     if ttyp.generics.params.is_empty() && where_clause.is_none() {
@@ -632,23 +562,23 @@ trait EmitImpl: Sized + Clone {
                             type #{&ttyp.ident} = #new_tp;
                         }
                     } else {
-                        abort!(&implementor.path, "cannot implement this trait to enum"; note = ttyp.span() => "because the trait has associated types with generics");
+                        abort!(&input.implementor.path, "cannot implement this trait to enum"; note = ttyp.span() => "because the trait has associated types with generics");
                     }
                 } else {
                     quote! {
-                        type #{&ttyp.ident} #impl_generics = <#{&pred_tys[0]} as #path #trait_ty_generics>::#{&ttyp.ident} #ty_generics #where_clause;
+                        type #{&ttyp.ident} #impl_generics = <#{&pred_tys[0]} as #trait_path>::#{&ttyp.ident} #ty_generics #where_clause;
                     }
                 }
             }
-            TraitItem::Const(tconst) => cloned_self.emit_trait_const(
-                &quote!(#path #trait_ty_generics),
-                &implementor,
-                tconst,
-            ),
+            TraitItem::Const(tconst) => {let mut tconst = tconst.clone();leaked_ty_visitor.visit_trait_item_const_mut(&mut tconst); self.emit_trait_const(
+                &trait_path,
+                &input.implementor,
+                &tconst,
+            )},
             o => abort!(o, "Not supported"),
         }).collect::<Vec<_>>();
-        let detected_implicit_assoc_tys = trait_modifier
-            .self_assoc_tys
+        let detected_implicit_assoc_tys = correct_assoc_tys
+            .0
             .iter()
             .enumerate()
             .map(|(n, name)| {
@@ -661,7 +591,9 @@ trait EmitImpl: Sized + Clone {
                 )
             })
             .collect::<Vec<_>>();
+        let mut trait_supertraits = input.trait_def.supertraits.clone();
         for supertrait in trait_supertraits.iter_mut() {
+            leaked_ty_visitor.visit_type_param_bound_mut(supertrait);
             if let TypeParamBound::Trait(TraitBound { path, .. }) = supertrait {
                 if let Some(PathSegment { arguments, .. }) = path.segments.last_mut() {
                     if let PathArguments::None = &arguments {
@@ -696,10 +628,10 @@ trait EmitImpl: Sized + Clone {
                 .map(|(_, par)| parse_quote! {#par})
                 .collect::<Vec<GenericParam>>(),
         );
-        let pred_bounds = quote! {#path <#(#implr_args,)* #(for (name, par) in &detected_implicit_assoc_tys) {#name = #par,}>};
+        let pred_bounds = quote! {#path <#(for arg in &implr_args){#arg,} #(for (name, par) in &detected_implicit_assoc_tys) {#name = #par,}>};
         quote! {
             #[automatically_derived]
-            #{&input.trait_def.unsafety} impl < #impl_generics_modified > #path #trait_ty_generics for #{self.ident()} #{type_generics.split_for_impl().1}
+            #{&input.trait_def.unsafety} impl < #impl_generics_modified > #trait_path for #{self.ident()} #{adt_generics.split_for_impl().1}
             where
                 #(#where_clause,)*
                 Self: #trait_supertraits,
@@ -709,7 +641,7 @@ trait EmitImpl: Sized + Clone {
             }
             #(if input.alternative.is_some()) {
                 #[automatically_derived]
-                unsafe impl < #impl_generics_modified > #{&implementor.path} for #{self.ident()} #{type_generics.split_for_impl().1}
+                unsafe impl < #impl_generics_modified > #{&input.implementor.path} for #{self.ident()} #{adt_generics.split_for_impl().1}
                 where
                     #(#where_clause,)*
                     Self: #trait_supertraits,
@@ -757,7 +689,7 @@ impl EmitImpl for ItemEnum {
                             }
                         )} => {#{
                             let l = [pred_param.clone()];
-                            f(&l)
+                            f(&l[..])
                         }}
                     }
                 }
@@ -776,15 +708,13 @@ impl EmitImpl for ItemEnum {
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
         self.variants
             .iter()
-            .map(|v| find_pred_field(implementor, &v.fields).1.ty.clone())
+            .map(|v| {
+                find_pred_field(&implementor.clone(), &v.fields)
+                    .1
+                    .ty
+                    .clone()
+            })
             .collect()
-    }
-
-    fn modify_self(mut self, modifier: &mut ModifyGenerics) -> Self {
-        for variant in &mut self.variants {
-            modifier.visit_variant_mut(variant);
-        }
-        self
     }
 }
 
@@ -832,11 +762,6 @@ impl EmitImpl for ItemStruct {
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
         vec![find_pred_field(implementor, &self.fields).1.ty.clone()]
     }
-
-    fn modify_self(mut self, modifier: &mut ModifyGenerics) -> Self {
-        modifier.visit_fields_mut(&mut self.fields);
-        self
-    }
 }
 
 impl Input {
@@ -882,6 +807,7 @@ impl Input {
         type_modifier.visit_path_mut(&mut self.implementor.path);
         match &mut self.adt {
             Adt::Enum(item_enum) => type_modifier.visit_item_enum_mut(item_enum),
+
             Adt::Struct(item_struct) => type_modifier.visit_item_struct_mut(item_struct),
         }
     }
@@ -955,15 +881,14 @@ impl Input {
         }
     }
 
-    fn modify_leaked_tys(&mut self) {
-        let newer_type = &self.newer_type;
+    fn make_leaked_ty_visitor(&self, nonce: u64) -> impl VisitMut {
         let encoded_generics =
             type_leak::encode_generics_to_ty(self.trait_ty_generics().iter().flatten());
-        let mut visitor = self.referrer.clone().into_visitor(|_, id| {
-            let repeater: Path = parse_quote!(#newer_type::Repeater<#id, #encoded_generics>);
-            parse_quote!(<Self as #repeater<#id, #repeater>>::Type)
-        });
-        visitor.visit_item_trait_mut(&mut self.trait_def);
+        let repeater_path = self.repeater.clone();
+        self.referrer.clone().into_visitor(move |_, id| {
+            let repeater: Path = parse_quote!(#repeater_path<#nonce, #id, #encoded_generics>);
+            parse_quote!(<Self as #repeater>::Type)
+        })
     }
 
     fn trait_ty_generics(&self) -> Option<Punctuated<GenericArgument, Token![,]>> {
@@ -988,10 +913,13 @@ impl Input {
         let nonce = crate::random();
         input.modify_implr_generics(nonce);
         input.modify_adt_generics(nonce);
-        input.modify_leaked_tys();
-        match &self.adt {
-            Adt::Enum(item_enum) => item_enum.emit_impl(&input),
-            Adt::Struct(item_struct) => item_struct.emit_impl(&input),
+        input.modify_trait_generics();
+        let mut leaked_ty_visitor = input.make_leaked_ty_visitor(nonce);
+        match &input.adt {
+            Adt::Enum(item_enum) => item_enum.emit_impl(&input, nonce, &mut leaked_ty_visitor),
+            Adt::Struct(item_struct) => {
+                item_struct.emit_impl(&input, nonce, &mut leaked_ty_visitor)
+            }
         }
     }
 }

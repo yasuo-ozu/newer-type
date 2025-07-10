@@ -7,12 +7,14 @@ use type_leak::{Leaker, NotInternableError, Referrer};
 pub struct Argument {
     alternative: Option<Path>,
     newer_type: Path,
+    repeater: Path,
 }
 
 impl syn::parse::Parse for Argument {
     fn parse(input: parse::ParseStream) -> Result<Self> {
         let mut alternative = None;
         let mut newer_type = parse_quote!(::newer_type);
+        let mut repeater = None;
 
         while !input.is_empty() {
             let ident = input.parse::<Ident>()?;
@@ -23,6 +25,9 @@ impl syn::parse::Parse for Argument {
                 }
                 "newer_type" => {
                     newer_type = input.parse()?;
+                }
+                "repeater" => {
+                    repeater = Some(input.parse()?);
                 }
                 _ => {
                     return Err(Error::new_spanned(&ident, "Unsupported argument"));
@@ -36,6 +41,8 @@ impl syn::parse::Parse for Argument {
         Ok(Argument {
             alternative,
             newer_type,
+            repeater: repeater
+                .unwrap_or_else(|| abort!(Span::call_site(), "argument 'repeater' is required")),
         })
     }
 }
@@ -72,7 +79,7 @@ fn emit_repeater_impl(
         .enumerate()
         .map(|(n, ty)| {
             quote! {
-                impl < #impl_generics > #repeater<#n, #encoded_generics> for #self_type
+                impl < #impl_generics > #repeater<#nonce, #n, #encoded_generics> for #self_type
                 where
                     Self: #{&input.ident} #ty_generics,
                     #{where_clause.map(|wc| &wc.predicates)}
@@ -100,7 +107,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     .unwrap_or_else(|NotInternableError(span)| abort!(span, "cannot intern this element"; hint = "use absolute path instead"));
     leaker.reduce_roots();
     let referrer = leaker.finish();
-    let repeater = parse_quote!(#crate_path::Repeater);
+    let repeater = &arg.repeater;
     let repeater_impl = emit_repeater_impl(&input, &referrer, &repeater, nonce);
     let mut output = input.clone();
     if let Some(mut alternative) = arg.alternative.clone() {
@@ -153,6 +160,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
                     /* alternative */ #{&arg.alternative},
                     /* newer_type */ #crate_path,
                     /* referrer */ #referrer,
+                    /* repeater */ #repeater,
                     /* nonce */ #nonce
                 }
             }

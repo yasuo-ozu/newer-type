@@ -132,6 +132,12 @@ pub struct Argument {
     pub implementors: Punctuated<Implementor, Token![,]>,
 }
 
+impl ToTokens for Argument {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.implementors.to_tokens(tokens);
+    }
+}
+
 impl Argument {
     pub fn from_attr(attr: &Attribute) -> Result<Option<Self>> {
         match &attr.meta {

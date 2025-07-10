@@ -1,7 +1,11 @@
 use newer_type::{implement, target};
 
+pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
+    type Type;
+}
+
 // 1. シンプルな newtype のテスト
-#[target]
+#[target(repeater = Repeater)]
 trait MyTrait {
     fn value(&self) -> i32;
 }
@@ -45,7 +49,7 @@ fn test_partial_implement() {
 }
 
 // 3. 異なるトレイトの適用
-#[target]
+#[target(repeater = Repeater)]
 trait AnotherTrait {
     fn double_value(&self) -> i32;
 }
@@ -77,7 +81,7 @@ fn test_tuple_newtype() {
 }
 
 // 5. ジェネリック型のサポート
-#[target]
+#[target(repeater = Repeater)]
 trait GenericTrait<T> {
     fn get_value(&self) -> &T;
 }
@@ -151,7 +155,7 @@ fn test_vec_newtype() {
 }
 
 // 10. トレイトのデフォルト実装
-#[target]
+#[target(repeater = Repeater)]
 trait DefaultTrait {
     fn default_value(&self) -> i32 {
         999

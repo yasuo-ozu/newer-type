@@ -59,6 +59,6 @@ pub use newer_type_macro::implement;
 pub use newer_type_macro::target;
 
 #[doc(hidden)]
-pub trait Repeater<const N: usize, T: ?Sized> {
+pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
     type Type;
 }

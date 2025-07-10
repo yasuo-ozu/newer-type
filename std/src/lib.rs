@@ -40,7 +40,7 @@ macro_rules! emit_traits {
         $($t:tt)*
     ) => {
         $(#[$($other_attr)*])*
-        #[target(alternative = $alternative, newer_type = $crate::newer_type)]
+        #[target(alternative = $alternative, newer_type = $crate::newer_type, repeater = $crate::Repeater)]
         $(
             #[doc = $doc0]
             #[doc = ""]
@@ -70,3 +70,7 @@ macro_rules! emit_traits {
     };
 }
 use emit_traits;
+
+pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
+    type Type;
+}

@@ -25,7 +25,7 @@ emit_traits! {
 
 macro_rules! impl_to_owned {
     () => {
-        #[target(alternative =  ::std::borrow::ToOwned, newer_type = $crate::newer_type)]
+        #[target(alternative =  ::std::borrow::ToOwned, newer_type = $crate::newer_type, repeater = $crate::Repeater)]
         #[cfg(feature = "std")]
         /// This trait is empty declaration of [`::std::borrow::ToOwned`] to be used
         /// with [`newer_type::implement`].

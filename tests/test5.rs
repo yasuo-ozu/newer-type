@@ -1,8 +1,12 @@
 use newer_type::{implement, target};
 
+pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
+    type Type;
+}
+
 mod m {
     type T = usize;
-    #[super::target]
+    #[super::target(repeater = super::Repeater)]
     pub trait MyNewTrait {
         type MyType<'a>
         where
