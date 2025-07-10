@@ -9,9 +9,9 @@ pub use newer_type_macro::__implement_internal;
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// use newer_type::implement;
-/// use newer_type::traits::{Extend, PartialEq};
+/// use newer_type_std::{ops::Extend, cmp::PartialEq};
 ///
 /// #[implement(Extend<usize>)]
 /// struct Example1(Vec<usize>);
@@ -42,7 +42,11 @@ pub use newer_type_macro::implement;
 ///   ```
 ///   use newer_type::target;
 ///
-///   #[target]
+///   pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+///       type Type;
+///   }
+///
+///   #[target(repeater = Repeater)]
 ///   trait MyTrait {
 ///       fn my_fn(&self) -> ::core::primitive::usize;
 ///   }
@@ -51,7 +55,12 @@ pub use newer_type_macro::implement;
 ///   ```
 ///   use newer_type::target;
 ///   type TypeFromContext = usize;
-///   #[target]
+///
+///   pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+///       type Type;
+///   }
+///
+///   #[target(repeater = Repeater)]
 ///   trait MyTrait {
 ///       fn my_fn(&self, t: TypeFromContext) -> Box<usize>;
 ///   }

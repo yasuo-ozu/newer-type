@@ -6,7 +6,7 @@ pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
 
 mod m {
     type T = usize;
-    #[super::target(repeater = super::Repeater)]
+    #[super::target(repeater = crate::Repeater)]
     pub trait MyNewTrait {
         type MyType<'a>
         where

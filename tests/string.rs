@@ -9,6 +9,7 @@ pub trait ToString {
     fn to_string(&self) -> String;
 }
 
+#[allow(unused)]
 #[implement(ToString)]
 struct MyStruct {
     slot: u8,

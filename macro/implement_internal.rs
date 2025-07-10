@@ -469,14 +469,14 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             }
         });
         quote! {
-            #{&input.sig.constness}
-            #{&input.sig.asyncness}
-            #{&input.sig.unsafety}
-            #{&input.sig.abi}
-            fn #{&input.sig.ident} #impl_generics (
-                #{&input.sig.inputs}
-                #{&input.sig.variadic}
-            ) #{&input.sig.output} #{where_clause} {
+            #{&sig.constness}
+            #{&sig.asyncness}
+            #{&sig.unsafety}
+            #{&sig.abi}
+            fn #{&sig.ident} #impl_generics (
+                #{&sig.inputs}
+                #{&sig.variadic}
+            ) #{&sig.output} #{where_clause} {
                 #body
             }
         }
@@ -570,11 +570,11 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                     }
                 }
             }
-            TraitItem::Const(tconst) => {let mut tconst = tconst.clone();leaked_ty_visitor.visit_trait_item_const_mut(&mut tconst); self.emit_trait_const(
+            TraitItem::Const(tconst) => self.emit_trait_const(
                 &trait_path,
                 &input.implementor,
-                &tconst,
-            )},
+                tconst,
+            ),
             o => abort!(o, "Not supported"),
         }).collect::<Vec<_>>();
         let detected_implicit_assoc_tys = correct_assoc_tys
@@ -634,7 +634,9 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             #{&input.trait_def.unsafety} impl < #impl_generics_modified > #trait_path for #{self.ident()} #{adt_generics.split_for_impl().1}
             where
                 #(#where_clause,)*
-                Self: #trait_supertraits,
+                #(for st in &trait_supertraits) {
+                    Self: #st,
+                }
                 #(#pred_tys: #pred_bounds),*
             {
                 #(#items)*
@@ -644,7 +646,9 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 unsafe impl < #impl_generics_modified > #{&input.implementor.path} for #{self.ident()} #{adt_generics.split_for_impl().1}
                 where
                     #(#where_clause,)*
-                    Self: #trait_supertraits,
+                    #(for st in &trait_supertraits) {
+                        Self: #st,
+                    }
                     #(#pred_tys: #pred_bounds),*
                 {}
             }
@@ -914,7 +918,7 @@ impl Input {
         input.modify_implr_generics(nonce);
         input.modify_adt_generics(nonce);
         input.modify_trait_generics();
-        let mut leaked_ty_visitor = input.make_leaked_ty_visitor(nonce);
+        let mut leaked_ty_visitor = input.make_leaked_ty_visitor(self.nonce);
         match &input.adt {
             Adt::Enum(item_enum) => item_enum.emit_impl(&input, nonce, &mut leaked_ty_visitor),
             Adt::Struct(item_struct) => {
