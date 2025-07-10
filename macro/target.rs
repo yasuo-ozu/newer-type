@@ -108,7 +108,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     leaker.reduce_roots();
     let referrer = leaker.finish();
     let repeater = &arg.repeater;
-    let repeater_impl = emit_repeater_impl(&input, &referrer, &repeater, nonce);
+    let repeater_impl = emit_repeater_impl(&input, &referrer, repeater, nonce);
     let mut output = input.clone();
     if let Some(mut alternative) = arg.alternative.clone() {
         let last_seg = alternative.segments.iter_mut().next_back().unwrap();
