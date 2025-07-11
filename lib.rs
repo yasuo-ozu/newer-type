@@ -33,41 +33,62 @@ pub use newer_type_macro::implement;
 ///
 /// - `alternative` ... Trait. If specified, implement this trait instead of the
 ///   target trait itself. The target trait is used only for an argument of
-///   [`implement`] macro. See implementation of [`traits`].
+///   [`implement`] macro.
 /// - `newer_type` ... Set path to `newer_type` crate. Defaults to
 ///   `::newer_type`. Example: `::your_crate::_export::newer_type`.
+/// - `repeater` ... Absolute path to the `Repeater` crate. see the example
+///   section. The `Repeater` trait is defined in the same crate that the target
+///   trait is defined, and should be visible from the users, which refer to the
+///   trait with `#[implement]` macro.
 ///
-///   # Example
+/// # Example
 ///
-///   ```
-///   use newer_type::target;
+/// ```
+/// use newer_type::target;
 ///
-///   pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
-///       type Type;
-///   }
+/// pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+///     type Type;
+/// }
 ///
-///   #[target(repeater = Repeater)]
-///   trait MyTrait {
-///       fn my_fn(&self) -> ::core::primitive::usize;
-///   }
-///   ```
+/// #[target(repeater = Repeater)]
+/// trait MyTrait {
+///     fn my_fn(&self) -> ::core::primitive::usize;
+/// }
+/// ```
 ///
-///   ```
-///   use newer_type::target;
-///   type TypeFromContext = usize;
+/// ```
+/// use newer_type::target;
+/// type TypeFromContext = usize;
 ///
-///   pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
-///       type Type;
-///   }
+/// pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+///     type Type;
+/// }
 ///
-///   #[target(repeater = Repeater)]
-///   trait MyTrait {
-///       fn my_fn(&self, t: TypeFromContext) -> Box<usize>;
-///   }
-///   ```
+/// #[target(repeater = Repeater)]
+/// trait MyTrait {
+///     fn my_fn(&self, t: TypeFromContext) -> Box<usize>;
+/// }
+/// ```
+///
+/// We recomend this pattern to set `repeater` path correctly.
+///
+/// ```ignore
+/// use newer_type::target;
+/// type TypeFromContext = usize;
+///
+/// // placed in crate root
+/// pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+///     type Type;
+/// }
+///
+/// macro_rules! emit_trait {
+///     () => {
+///         #[target(repeater = $crate::Repeater)]
+///         trait MyTrait {
+///             fn my_fn(&self, t: TypeFromContext) -> Box<usize>;
+///         }
+///     };
+/// }
+/// emit_trait!();
+/// ```
 pub use newer_type_macro::target;
-
-#[doc(hidden)]
-pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
-    type Type;
-}

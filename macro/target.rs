@@ -7,7 +7,7 @@ use type_leak::{Leaker, NotInternableError, Referrer};
 pub struct Argument {
     alternative: Option<Path>,
     newer_type: Path,
-    repeater: Path,
+    repeater: Option<Path>,
 }
 
 impl syn::parse::Parse for Argument {
@@ -41,8 +41,7 @@ impl syn::parse::Parse for Argument {
         Ok(Argument {
             alternative,
             newer_type,
-            repeater: repeater
-                .unwrap_or_else(|| abort!(Span::call_site(), "argument 'repeater' is required")),
+            repeater,
         })
     }
 }
@@ -50,9 +49,9 @@ impl syn::parse::Parse for Argument {
 fn emit_repeater_impl(
     input: &ItemTrait,
     referrer: &Referrer,
-    repeater: &Path,
+    repeater: &Option<Path>,
     nonce: u64,
-) -> TokenStream {
+) -> (Path, TokenStream) {
     let self_type = Ident::new(&format!("__NewerTypeSelf{nonce}"), Span::call_site());
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     let generic_args = input
@@ -74,7 +73,29 @@ fn emit_repeater_impl(
     let mut impl_generics = input.generics.params.clone();
     impl_generics.push(GenericParam::Type(parse_quote!(#self_type)));
     let encoded_generics = type_leak::encode_generics_to_ty(&generic_args);
-    referrer
+    let (repeater, repeater_def) = if let Some(repeater) = repeater {
+        (repeater.clone(), quote!())
+    } else {
+        let repeater_ident = Ident::new(
+            &format!("give_repeater_argument_to_this_target_attribute_macro_{nonce}"),
+            Span::call_site(),
+        );
+        (
+            parse_quote!(#repeater_ident),
+            quote! {
+                #[doc(hidden)]
+                #[allow(non_camel_case_types)]
+                #{&input.vis} trait #repeater_ident<
+                    const TRAIT_ID: ::core::primitive::u64,
+                    const NTH: ::core::primitive::usize,
+                    T: ?::core::marker::Sized
+                > {
+                    type Type: ?::core::marker::Sized;
+                }
+            },
+        )
+    };
+    let ret: TokenStream = referrer
         .iter()
         .enumerate()
         .map(|(n, ty)| {
@@ -88,7 +109,8 @@ fn emit_repeater_impl(
                 }
             }
         })
-        .collect()
+        .collect();
+    (repeater, quote!(#repeater_def #ret))
 }
 
 pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
@@ -108,7 +130,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
     leaker.reduce_roots();
     let referrer = leaker.finish();
     let repeater = &arg.repeater;
-    let repeater_impl = emit_repeater_impl(&input, &referrer, repeater, nonce);
+    let (repeater_path, repeater_impl) = emit_repeater_impl(&input, &referrer, repeater, nonce);
     let mut output = input.clone();
     if let Some(mut alternative) = arg.alternative.clone() {
         let last_seg = alternative.segments.iter_mut().next_back().unwrap();
@@ -160,7 +182,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
                     /* alternative */ #{&arg.alternative},
                     /* newer_type */ #crate_path,
                     /* referrer */ #referrer,
-                    /* repeater */ #repeater,
+                    /* repeater */ #repeater_path,
                     /* nonce */ #nonce
                 }
             }

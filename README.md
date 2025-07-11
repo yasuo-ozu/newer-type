@@ -49,11 +49,7 @@ impl SayHello for MyName {
 ```rust
 # use newer_type::{implement, target};
 
-pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
-    type Type;
-}
-
-#[target(repeater = Repeater)]
+#[target]
 trait SayHello {
     fn say_hello(&self) -> String;
 }

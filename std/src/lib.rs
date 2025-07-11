@@ -72,5 +72,5 @@ macro_rules! emit_traits {
 use emit_traits;
 
 pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
-    type Type;
+    type Type: ?Sized;
 }
