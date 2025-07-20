@@ -28,7 +28,10 @@ emit_traits! {
         fn fill_buf(&mut self) -> ::std::io::Result<&[::core::primitive::u8]>;
         fn consume(&mut self, amt: ::core::primitive::usize);
     }
+}
 
+#[rustversion::since(1.80)]
+emit_traits! {
     #[implement_of(newer_type_std::io::Seek)]
     #[slot(std::fs::File)]
     #[target(alternative = ::std::io::Seek)]
@@ -37,5 +40,17 @@ emit_traits! {
         fn rewind(&mut self) -> ::std::io::Result<()>;
         fn stream_position(&mut self) -> ::std::io::Result<::core::primitive::u64>;
         fn seek_relative(&mut self, offset: ::core::primitive::i64) -> ::std::io::Result<()>;
+    }
+}
+
+#[rustversion::before(1.80)]
+emit_traits! {
+    #[implement_of(newer_type_std::io::Seek)]
+    #[slot(std::fs::File)]
+    #[target(alternative = ::std::io::Seek)]
+    pub trait Seek {
+        fn seek(&mut self, pos: ::std::io::SeekFrom) -> ::std::io::Result<::core::primitive::u64>;
+        fn rewind(&mut self) -> ::std::io::Result<()>;
+        fn stream_position(&mut self) -> ::std::io::Result<::core::primitive::u64>;
     }
 }

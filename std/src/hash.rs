@@ -11,7 +11,7 @@ emit_traits! {
     }
 
     #[implement_of(newer_type_std::hash::Hasher)]
-    #[slot(std::hash::DefaultHasher)]
+    #[slot(std::collections::hash_map::DefaultHasher)]
     #[target(alternative = ::core::hash::Hasher)]
     pub trait Hasher {
         fn finish(&self) -> ::core::primitive::u64;
@@ -29,9 +29,12 @@ emit_traits! {
         fn write_i128(&mut self, i: ::core::primitive::i128);
         fn write_isize(&mut self, i: ::core::primitive::isize);
     }
+}
 
+#[rustversion::since(1.71)]
+emit_traits! {
     #[implement_of(newer_type_std::hash::BuildHasher)]
-    #[slot(std::hash::RandomState)]
+    #[slot(std::collections::hash_map::RandomState)]
     #[target(alternative = ::core::hash::BuildHasher)]
     pub trait BuildHasher {
         type Hasher: ::core::hash::Hasher;
@@ -41,5 +44,16 @@ emit_traits! {
         where
             Self: ::core::marker::Sized,
             Self::Hasher: ::core::hash::Hasher;
+    }
+}
+
+#[rustversion::before(1.71)]
+emit_traits! {
+    #[implement_of(newer_type_std::hash::BuildHasher)]
+    #[slot(std::collections::hash_map::RandomState)]
+    #[target(alternative = ::core::hash::BuildHasher)]
+    pub trait BuildHasher {
+        type Hasher: ::core::hash::Hasher;
+        fn build_hasher(&self) -> Self::Hasher;
     }
 }

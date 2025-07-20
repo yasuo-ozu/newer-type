@@ -107,14 +107,8 @@ where
             it2.clone()
                 .filter(|arg| matches!(arg, GenericParam::Const(_))),
         )
-        .chain(
-            it1.clone()
-                .filter(|arg| matches!(arg, GenericParam::Type(_))),
-        )
-        .chain(
-            it2.clone()
-                .filter(|arg| matches!(arg, GenericParam::Type(_))),
-        )
+        .chain(it1.filter(|arg| matches!(arg, GenericParam::Type(_))))
+        .chain(it2.filter(|arg| matches!(arg, GenericParam::Type(_))))
 }
 
 #[derive(Default, Clone, Debug)]
@@ -493,7 +487,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         let mut path = input
             .alternative
             .clone()
-            .unwrap_or(input.implementor.path.clone());
+            .unwrap_or_else(|| input.implementor.path.clone());
         if let Some(last) = path.segments.last_mut() {
             last.arguments = PathArguments::None;
         }
@@ -529,8 +523,8 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         )
         .collect::<Punctuated<_, Token![,]>>();
         let pred_tys = self.get_predicate_types(&input.implementor);
-        let mut impl_generics_modified = impl_generics.clone();
-        let mut implr_args = trait_ty_generics.clone().unwrap_or_default();
+        let mut impl_generics_modified = impl_generics;
+        let mut implr_args = trait_ty_generics.unwrap_or_default();
         let items = input.trait_def.items.iter().map(|trait_item| match trait_item {
             TraitItem::Fn(tfn) => {
                 let tokens = self.emit_trait_fn(
@@ -712,12 +706,7 @@ impl EmitImpl for ItemEnum {
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
         self.variants
             .iter()
-            .map(|v| {
-                find_pred_field(&implementor.clone(), &v.fields)
-                    .1
-                    .ty
-                    .clone()
-            })
+            .map(|v| find_pred_field(&implementor.clone(), &v.fields).1.ty)
             .collect()
     }
 }
@@ -764,7 +753,7 @@ impl EmitImpl for ItemStruct {
     }
 
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
-        vec![find_pred_field(implementor, &self.fields).1.ty.clone()]
+        vec![find_pred_field(implementor, &self.fields).1.ty]
     }
 }
 
@@ -955,7 +944,7 @@ fn find_pred_field(implementor: &Implementor, fields: &Fields) -> (usize, Field)
                     !field
                         .ident
                         .clone()
-                        .map(|f| f.to_string().starts_with("_"))
+                        .map(|f| f.to_string().starts_with('_'))
                         .unwrap_or(true)
                 })
                 .collect::<Vec<_>>()
