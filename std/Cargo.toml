@@ -13,7 +13,7 @@ categories = ["rust-patterns", "data-structures", "no-std"]
 
 [dependencies]
 newer-type = { path = "..", version = "0.2.0" }
-rustversion = "*"
+rustversion = "1.0.0"
 
 [features]
 default = ["std"]
