@@ -69,7 +69,8 @@ That's it! The selected traits are automatically implemented for you.
 ## Examples using `newer_type::traits`
 
 In order to implement traits defined in Rust's standard library for your newtype, there are empty definitions
-in `newer_type::traits` namespace. You can pick up traits to be implemented from it.
+in [`newer_type_std`](https://docs.rs/newer-type-std/latest/newer_type-std/index.html) crate. You can pick up
+traits to be implemented from it.
 
 ```rust,ignore
 # use newer_type::implement;

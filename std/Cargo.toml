@@ -2,7 +2,7 @@
 name = "newer-type-std"
 description = "Support defining newtype wrapper with inheriting trait implementations"
 authors = ["Yasuo Ozu <yasuo@ozu.email>"]
-version = "0.1.2"
+version = "0.2.0"
 repository = "https://github.com/yasuo-ozu/newer-type"
 edition = "2021"
 license = "MIT"
@@ -12,7 +12,7 @@ keywords = ["newtype", "trait", "proc-macro", "attribute-macro"]
 categories = ["rust-patterns", "data-structures", "no-std"]
 
 [dependencies]
-newer-type = { path = "..", version = "0.1.2" }
+newer-type = { path = "..", version = "0.2.0" }
 rustversion = "*"
 
 [features]
