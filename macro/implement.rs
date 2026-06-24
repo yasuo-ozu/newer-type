@@ -43,7 +43,7 @@ pub struct Implementor {
 
 impl core::fmt::Display for Implementor {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        quote! {#{&self.path}}.fmt(f)
+        write!(f, "{}", quote! {#{&self.path}})
     }
 }
 

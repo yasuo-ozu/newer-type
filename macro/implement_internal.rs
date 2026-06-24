@@ -817,7 +817,7 @@ impl Input {
         let mut trait_modifier: ModifyGenerics = Default::default();
         let implr_args = self.trait_ty_generics().unwrap_or_default();
         for (i, tr_arg) in self.trait_def.generics.params.iter().enumerate() {
-            if let Some(implr_arg) = implr_args.get(i) {
+            if let Some(implr_arg) = implr_args.iter().nth(i) {
                 match (tr_arg, implr_arg) {
                     (
                         GenericParam::Lifetime(LifetimeParam { lifetime, .. }),
@@ -887,7 +887,7 @@ impl Input {
             type_leak::encode_generics_args_to_ty(self.trait_ty_generics().iter().flatten());
         let repeater_path = self.repeater.clone();
         self.referrer.clone().into_visitor(move |_, id| {
-            let repeater: Path = parse_quote!(#repeater_path<#nonce, #id, #encoded_generics>);
+            let repeater: Path = parse_quote!(#repeater_path<#encoded_generics, #nonce, #id>);
             parse_quote!(<Self as #repeater>::Type)
         })
     }
@@ -929,7 +929,7 @@ fn find_pred_field(implementor: &Implementor, fields: &Fields) -> (usize, Field)
     let pred_fields = fields
         .iter()
         .enumerate()
-        .filter_map(|(i, field)| {
+        .filter(|(_, field)| {
             field
                 .attrs
                 .iter()
@@ -937,8 +937,8 @@ fn find_pred_field(implementor: &Implementor, fields: &Fields) -> (usize, Field)
                     Ok(Some(arg)) => arg.implementors.iter().any(|im| im == implementor),
                     _ => false,
                 })
-                .then(|| (i, field.clone()))
         })
+        .map(|(i, field)| (i, field.clone()))
         .collect::<Vec<_>>();
     let pred_fields = if pred_fields.is_empty() {
         if fields.len() == 1 {
