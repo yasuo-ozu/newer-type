@@ -76,6 +76,8 @@ impl template_quote::ToTokens for Input {
         <Token![,]>::default().to_tokens(tokens);
         self.alternative.to_tokens(tokens);
         <Token![,]>::default().to_tokens(tokens);
+        self.newer_type.to_tokens(tokens);
+        <Token![,]>::default().to_tokens(tokens);
         self.referrer.to_tokens(tokens);
         <Token![,]>::default().to_tokens(tokens);
         self.repeater.to_tokens(tokens);
@@ -162,10 +164,10 @@ impl ModifyGenerics {
 
     fn append_const(&mut self, ident: &mut Ident, nonce: u64) {
         let nident = Ident::new(
-            &format!("NewerTypeTypeParam{}Of{}", &ident, nonce),
+            &format!("NEWER_TYPE_CONST_PARAM_{}_OF_{}", &ident, nonce),
             ident.span(),
         );
-        self.const_map.insert(ident.clone(), parse_quote!(nident));
+        self.const_map.insert(ident.clone(), parse_quote!(#nident));
         *ident = nident;
     }
 
@@ -536,7 +538,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 );
                 quote! {
                     #(if &tfn.sig.ident == "ne") {
-                        #[allow(clippy::clippy::partialeq_ne_impl)]
+                        #[allow(clippy::partialeq_ne_impl)]
                     }
                     #tokens
                 }
@@ -548,7 +550,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 let (impl_generics, ty_generics, where_clause) = ttyp.generics.split_for_impl();
                 if pred_tys.len() != 1 {
                     if ttyp.generics.params.is_empty() && where_clause.is_none() {
-                        let new_tp = Ident::new(&format!("ASSOC_{}_{}", &ttyp.ident,nonce),ttyp.ident.span());
+                        let new_tp = Ident::new(&format!("NewerTypeAssoc{}Of{}", &ttyp.ident,nonce),ttyp.ident.span());
                         let assoc_ty = &ttyp.ident;
                         implr_args.push(parse_quote! {#assoc_ty = #new_tp});
                         impl_generics_modified.push(parse_quote! {#new_tp});
@@ -579,7 +581,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 (
                     name.clone(),
                     Ident::new(
-                        &format!("IMPL_ASSOC_{}_{}", &name, nonce + n as u64),
+                        &format!("NewerTypeImplAssoc{}Of{}", &name, nonce + n as u64),
                         Span::call_site(),
                     ),
                 )
@@ -627,6 +629,9 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             #[automatically_derived]
             #{&input.trait_def.unsafety} impl < #impl_generics_modified > #trait_path for #{self.ident()} #{adt_generics.split_for_impl().1}
             where
+                #(if let Some(wc) = &adt_generics.where_clause) {
+                    #(for pred in &wc.predicates) { #pred, }
+                }
                 #(#where_clause,)*
                 #(for st in &trait_supertraits) {
                     Self: #st,
@@ -639,6 +644,9 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 #[automatically_derived]
                 unsafe impl < #impl_generics_modified > #{&input.implementor.path} for #{self.ident()} #{adt_generics.split_for_impl().1}
                 where
+                    #(if let Some(wc) = &adt_generics.where_clause) {
+                        #(for pred in &wc.predicates) { #pred, }
+                    }
                     #(#where_clause,)*
                     #(for st in &trait_supertraits) {
                         Self: #st,
