@@ -108,7 +108,7 @@ trait Greet {
 
 impl Greet for String {
     fn greet(&self) -> String {
-        format!("hi {self}")
+        format!("hi {}", self)
     }
 }
 

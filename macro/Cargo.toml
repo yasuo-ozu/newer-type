@@ -2,11 +2,11 @@
 name = "newer-type-macro"
 description = "Support defining newtype wrapper with inheriting trait implementations"
 authors = ["Yasuo Ozu <yasuo@ozu.email>"]
-version = "0.2.0"
+version = "0.3.0"
 repository = "https://github.com/yasuo-ozu/newer-type"
 edition = "2021"
 license = "MIT"
-rust-version = "1.65.0"
+rust-version = "1.56.0"
 homepage = "https://github.com/yasuo-ozu/newer-type"
 keywords = ["newtype", "trait", "proc-macro", "attribute-macro"]
 categories = ["rust-patterns", "data-structures"]
@@ -20,7 +20,7 @@ proc-macro2 = "1.0"
 template-quote = "0.4"
 proc-macro-error = { version = "1.0", default-features = false }
 derive-syn-parse = "0.2.0"
-type-leak = "0.2.0"
+type-leak = "0.7.0"
 
 [dependencies.syn]
 version = "2.0"

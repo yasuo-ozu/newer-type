@@ -52,7 +52,7 @@ fn emit_repeater_impl(
     repeater: &Option<Path>,
     nonce: u64,
 ) -> (Path, TokenStream) {
-    let self_type = Ident::new(&format!("__NewerTypeSelf{nonce}"), Span::call_site());
+    let self_type = Ident::new(&format!("__NewerTypeSelf{}", nonce), Span::call_site());
     let (_, ty_generics, where_clause) = input.generics.split_for_impl();
     let generic_args = input
         .generics
@@ -72,12 +72,12 @@ fn emit_repeater_impl(
         .collect::<Vec<_>>();
     let mut impl_generics = input.generics.params.clone();
     impl_generics.push(GenericParam::Type(parse_quote!(#self_type)));
-    let encoded_generics = type_leak::encode_generics_to_ty(&generic_args);
+    let encoded_generics = type_leak::encode_generics_args_to_ty(&generic_args);
     let (repeater, repeater_def) = if let Some(repeater) = repeater {
         (repeater.clone(), quote!())
     } else {
         let repeater_ident = Ident::new(
-            &format!("give_repeater_argument_to_this_target_attribute_macro_{nonce}"),
+            &format!("give_repeater_argument_to_this_target_attribute_macro_{}", nonce),
             Span::call_site(),
         );
         (
@@ -170,7 +170,7 @@ pub fn target(arg: Argument, input: ItemTrait) -> TokenStream {
             .push(parse_quote!(#[doc = " should be implemented by [`newer_type::implement`]"]));
     }
 
-    let temporal_mac_name = Ident::new(&format!("__newer_type_macro__{nonce}"), Span::call_site());
+    let temporal_mac_name = Ident::new(&format!("__newer_type_macro__{}", nonce), Span::call_site());
     quote! {
         #[doc(hidden)]
         #[macro_export]

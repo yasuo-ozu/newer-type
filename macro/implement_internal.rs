@@ -416,7 +416,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 let mut cnt = 0usize;
                 update_pat_names(pat.as_mut(), &mut |span| {
                     cnt += 1;
-                    Ident::new(&format!("__newer_type_arg_{nonce}_{cnt}"), span)
+                    Ident::new(&format!("__newer_type_arg_{}_{}", nonce, cnt), span)
                 })
             }
         }
@@ -727,7 +727,7 @@ impl EmitImpl for ItemStruct {
         mut f: impl FnMut(&[Ident]) -> TokenStream,
     ) -> TokenStream {
         let pred_params = (0..preds.len())
-            .map(|i| Ident::new(&format!("__newer_type_pred_param_{i}"), Span::call_site()))
+            .map(|i| Ident::new(&format!("__newer_type_pred_param_{}", i), Span::call_site()))
             .collect::<Vec<_>>();
         let (n, pred_field) = find_pred_field(implementor, &self.fields);
         quote! {
@@ -884,7 +884,7 @@ impl Input {
 
     fn make_leaked_ty_visitor(&self, nonce: u64) -> impl VisitMut {
         let encoded_generics =
-            type_leak::encode_generics_to_ty(self.trait_ty_generics().iter().flatten());
+            type_leak::encode_generics_args_to_ty(self.trait_ty_generics().iter().flatten());
         let repeater_path = self.repeater.clone();
         self.referrer.clone().into_visitor(move |_, id| {
             let repeater: Path = parse_quote!(#repeater_path<#nonce, #id, #encoded_generics>);
@@ -937,7 +937,7 @@ fn find_pred_field(implementor: &Implementor, fields: &Fields) -> (usize, Field)
                     Ok(Some(arg)) => arg.implementors.iter().any(|im| im == implementor),
                     _ => false,
                 })
-                .then_some((i, field.clone()))
+                .then(|| (i, field.clone()))
         })
         .collect::<Vec<_>>();
     let pred_fields = if pred_fields.is_empty() {
@@ -976,7 +976,7 @@ fn find_pred_field(implementor: &Implementor, fields: &Fields) -> (usize, Field)
             n;
             note = pred_fields[0].1.span() => "first predicate is here";
             note = pred_fields[1].1.span() => "second predicate is here";
-            note =? (n > 2).then_some("and one or more predicates");
+            note =? (n > 2).then(|| "and one or more predicates");
             hint = "add #[implement({})] for any field", implementor;
         ),
     }

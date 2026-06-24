@@ -24,3 +24,24 @@ jobs:
     - name: Run tests for std crate
       run: cargo test --manifest-path std/Cargo.toml
 
+  msrv:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install toolchains
+      run: |
+        rustup toolchain install 1.56.0 --profile minimal
+        rustup toolchain install stable --profile minimal
+    # Resolve the lockfile with a modern cargo (recent dependency manifests are
+    # not always parseable by cargo 1.56), then pin transitive dependencies
+    # whose *own* declared MSRV exceeds ours. cargo's newest-first resolver
+    # otherwise picks num-traits >= 0.2.18 (reached via type-leak -> safegraph),
+    # which requires Rust 1.60; 0.2.15 carries no rust-version and builds on 1.56.
+    - name: Lock MSRV-compatible dependency versions
+      run: |
+        cargo +stable update
+        cargo +stable update -p num-traits --precise 0.2.15
+    - name: cargo check on MSRV (1.56.0)
+      run: cargo +1.56.0 check --workspace --locked
