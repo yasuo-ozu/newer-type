@@ -46,7 +46,7 @@ pub use newer_type_macro::implement;
 /// ```
 /// use newer_type::target;
 ///
-/// pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+/// pub trait Repeater<T: ?Sized, const TRAIT_ID : u64, const NTH : usize> {
 ///     type Type;
 /// }
 ///
@@ -60,7 +60,7 @@ pub use newer_type_macro::implement;
 /// use newer_type::target;
 /// type TypeFromContext = usize;
 ///
-/// pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+/// pub trait Repeater<T: ?Sized, const TRAIT_ID : u64, const NTH : usize> {
 ///     type Type;
 /// }
 ///
@@ -77,7 +77,7 @@ pub use newer_type_macro::implement;
 /// type TypeFromContext = usize;
 ///
 /// // placed in crate root
-/// pub trait Repeater<const TRAIT_ID : u64, const NTH : usize, T: ?Sized> {
+/// pub trait Repeater<T: ?Sized, const TRAIT_ID : u64, const NTH : usize> {
 ///     type Type;
 /// }
 ///

@@ -86,9 +86,9 @@ fn emit_repeater_impl(
                 #[doc(hidden)]
                 #[allow(non_camel_case_types)]
                 #{&input.vis} trait #repeater_ident<
+                    T: ?::core::marker::Sized,
                     const TRAIT_ID: ::core::primitive::u64,
-                    const NTH: ::core::primitive::usize,
-                    T: ?::core::marker::Sized
+                    const NTH: ::core::primitive::usize
                 > {
                     type Type: ?::core::marker::Sized;
                 }
@@ -100,7 +100,7 @@ fn emit_repeater_impl(
         .enumerate()
         .map(|(n, ty)| {
             quote! {
-                impl < #impl_generics > #repeater<#nonce, #n, #encoded_generics> for #self_type
+                impl < #impl_generics > #repeater<#encoded_generics, #nonce, #n> for #self_type
                 where
                     Self: #{&input.ident} #ty_generics,
                     #{where_clause.map(|wc| &wc.predicates)}

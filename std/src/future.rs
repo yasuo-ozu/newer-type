@@ -7,7 +7,12 @@ emit_traits! {
         type Output;
         fn poll(self: ::core::pin::Pin<&mut Self>, cx: &mut ::core::task::Context<'_>) -> ::core::task::Poll<Self::Output>;
     }
+}
 
+// `core::future::IntoFuture` was stabilized in Rust 1.64; omit the forwarding
+// declaration on older toolchains where the target trait does not exist.
+#[rustversion::since(1.64)]
+emit_traits! {
     #[target(alternative = ::core::future::IntoFuture)]
     pub trait IntoFuture {
         type Output;

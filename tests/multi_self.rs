@@ -1,7 +1,7 @@
 use newer_type::{implement, target};
 use std::fmt::Debug;
 
-pub trait Repeater<const TRAIT_ID: u64, const NTH: usize, T: ?Sized> {
+pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
     type Type;
 }
 
