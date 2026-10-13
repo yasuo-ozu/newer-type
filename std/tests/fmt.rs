@@ -83,9 +83,9 @@ fn test_fmt_write_trait() {
 
 #[test]
 fn test_generic_fmt_struct() {
-    let value = MyGenericFmtStruct { inner: 3.14f64 };
-    assert_eq!(format!("{}", value), "3.14");
-    assert_eq!(format!("{:?}", value), "3.14");
+    let value = MyGenericFmtStruct { inner: 2.75f64 };
+    assert_eq!(format!("{}", value), "2.75");
+    assert_eq!(format!("{:?}", value), "2.75");
 }
 
 #[test]
@@ -100,9 +100,9 @@ fn test_fmt_enum() {
 
 #[test]
 fn test_generic_fmt_enum() {
-    let e1 = MyGenericFmtEnum::One(3.14);
+    let e1 = MyGenericFmtEnum::One(2.75);
     let e2 = MyGenericFmtEnum::Many(vec![1, 2, 3]);
-    assert_eq!(format!("{:?}", e1), "3.14");
+    assert_eq!(format!("{:?}", e1), "2.75");
     assert_eq!(format!("{:?}", e2), "[1, 2, 3]");
 }
 
@@ -118,7 +118,7 @@ fn test_write_struct_trait() {
 #[test]
 fn test_write_enum_trait() {
     let mut wrapper = MyWriteEnum::A(String::new());
-    write!(&mut wrapper, "hello {}", "world").unwrap();
+    write!(&mut wrapper, "hello {}", ["world"][0]).unwrap();
     match wrapper {
         MyWriteEnum::A(ref s) => assert_eq!(s, "hello world"),
         _ => panic!("unexpected variant"),

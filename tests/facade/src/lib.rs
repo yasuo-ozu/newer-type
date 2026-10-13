@@ -1,16 +1,14 @@
-//! A facade crate: re-exports newer-type and defines `#[target]` traits with
-//! it.
+//! A facade crate: re-exports newer-type and announces traits for
+//! `#[implement]` with it, without a dependency on `announce` of its own.
 pub use newer_type;
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type: ?Sized;
-}
+newer_type::announce::define_repeater!(pub Repeater);
 
 pub struct Foo(pub u8);
 
 /// A parameter typed `crate::Foo` (it must read `$crate::Foo` in the
 /// trampoline).
-#[newer_type::target(repeater = crate::Repeater)]
+#[newer_type::announce::announce(crate = ::newer_type::announce)]
 pub trait UsesFoo {
     fn get(&self, b: crate::Foo) -> u8;
 }
@@ -27,7 +25,7 @@ mod inner {
 use inner::Local;
 
 /// A relative (leaked) type, resolved through `Repeater`.
-#[newer_type::target(repeater = crate::Repeater)]
+#[newer_type::announce::announce(crate = ::newer_type::announce, repeater = crate::Repeater)]
 pub trait MakesLocal {
     fn make(&self) -> Local;
 }

@@ -4,7 +4,6 @@ use syn::*;
 
 mod implement;
 mod implement_internal;
-mod target;
 
 fn random() -> u64 {
     use std::hash::{BuildHasher, Hasher};
@@ -19,7 +18,7 @@ fn random() -> u64 {
 /// or when the manifest cannot be read (no Cargo), `::newer_type`. When the
 /// manifest has no `newer-type` dependency (the crate reaches it through a
 /// facade), `::newer_type` cannot resolve either, so this aborts with a hint.
-fn newer_type_crate(attr: &str) -> Path {
+fn newer_type_crate() -> Path {
     match proc_macro_crate::crate_name("newer-type") {
         Ok(proc_macro_crate::FoundCrate::Name(name)) => {
             let id = Ident::new(&name, proc_macro2::Span::call_site());
@@ -28,7 +27,7 @@ fn newer_type_crate(attr: &str) -> Path {
         Err(proc_macro_crate::Error::CrateNotFound { .. }) => abort!(
             proc_macro2::Span::call_site(),
             "newer_type: this crate's Cargo.toml has no `newer-type` dependency, so the path to newer-type is unknown";
-            hint = "if newer-type is reached through another crate (a facade), pass its path: `#[{}(newer_type = ::facade::newer_type, ..)]`", attr
+            hint = "if newer-type is reached through another crate (a facade), pass its path: `#[implement(newer_type = ::facade::newer_type, ..)]`"
         ),
         _ => parse_quote!(::newer_type),
     }
@@ -48,12 +47,6 @@ impl<T> ResultExt for syn::Result<T> {
             Err(e) => abort!(e.to_compile_error(), e),
         }
     }
-}
-
-#[proc_macro_error]
-#[proc_macro_attribute]
-pub fn target(arg: TokenStream1, input: TokenStream1) -> TokenStream1 {
-    target::target(parse_macro_input!(arg), parse_macro_input!(input)).into()
 }
 
 #[proc_macro_error]

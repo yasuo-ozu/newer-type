@@ -43,7 +43,3 @@ reexport! {
 }
 
 pub use newer_type;
-
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type: ?Sized;
-}

@@ -3,6 +3,10 @@
 //! type that implements the trait.
 //!
 //! `compiles! { name: FieldType => [implement args], [more args], ..; }`
+
+// `ExitCode` is newer than the MSRV, and `ToString` is the trait under test.
+#![allow(clippy::incompatible_msrv, clippy::to_string_trait_impl)]
+
 macro_rules! compiles {
     ($($name:ident: $slot:ty => $([$($imp:tt)*]),+;)*) => {$(
         #[allow(dead_code)]

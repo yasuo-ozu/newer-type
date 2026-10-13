@@ -267,7 +267,7 @@ pub fn implement(arg: &Argument, target_def: &Adt) -> TokenStream {
     let newer_type = arg
         .newer_type
         .clone()
-        .unwrap_or_else(|| crate::newer_type_crate("implement"));
+        .unwrap_or_else(crate::newer_type_crate);
     let imp: TokenStream = copied_target_def
         .collect_implementors()
         .into_iter()

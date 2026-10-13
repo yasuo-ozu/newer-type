@@ -2,7 +2,7 @@
 //! "newer-type" }`). The default path to newer-type is resolved from this
 //! crate's Cargo.toml.
 
-#[nt::target]
+#[nt::announce::announce(crate = ::nt::announce)]
 pub trait Hello {
     fn hello(&self) -> u8;
 }
