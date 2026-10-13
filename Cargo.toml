@@ -2,11 +2,11 @@
 name = "newer-type"
 description = "Support defining newtype wrapper with inheriting trait implementations"
 authors = ["Yasuo Ozu <yasuo@ozu.email>"]
-version = "0.3.0"
+version = "0.4.0"
 repository = "https://github.com/yasuo-ozu/newer-type"
 edition = "2021"
 license = "MIT"
-rust-version = "1.56.0"
+rust-version = "1.60"
 homepage = "https://github.com/yasuo-ozu/newer-type"
 keywords = ["newtype", "trait", "proc-macro", "attribute-macro"]
 categories = ["rust-patterns", "data-structures", "no-std"]
@@ -16,12 +16,13 @@ categories = ["rust-patterns", "data-structures", "no-std"]
 path = "lib.rs"
 
 [dependencies]
-newer-type-macro = { path = "macro", version = "0.3.0" }
+newer-type-macro = { path = "macro", version = "0.4.0" }
+announce = "0.1.0"
 
 [features]
 default = ["std"]
 std = []
 
 [workspace]
-members = [".", "macro", "std"]
+members = [".", "macro", "std", "tests/facade", "tests/facade-user", "tests/renamed"]
 resolver = "2"

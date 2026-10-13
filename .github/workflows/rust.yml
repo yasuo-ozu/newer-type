@@ -31,14 +31,13 @@ jobs:
         CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
     - name: Run clippy
       run: cargo +1.65.0 clippy --workspace --locked
-    - name: Run tests for base crate
-      run: cargo +1.65.0 test --locked
-    - name: Run tests for std crate
-      run: cargo +1.65.0 test --manifest-path std/Cargo.toml --locked
+    - name: Run tests (base crate, std crate and the facade/renamed-dependency tests)
+      run: cargo +1.65.0 test --workspace --locked
 
   # Verify the libraries still compile on the declared MSRV. Same resolution
   # strategy as above: resolve MSRV-compatible versions with `stable`, then
-  # `cargo check` with 1.56 against the pinned lockfile.
+  # `cargo check` with 1.60 against the pinned lockfile. 1.60 is the MSRV of
+  # proc-macro-crate's dependencies (announce itself needs 1.57).
   msrv:
 
     runs-on: ubuntu-latest
@@ -47,11 +46,11 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install toolchains
       run: |
-        rustup toolchain install 1.56.0 --profile minimal
+        rustup toolchain install 1.60.0 --profile minimal
         rustup toolchain install stable --profile minimal
     - name: Resolve MSRV-compatible lockfile
       run: cargo +stable generate-lockfile
       env:
         CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
-    - name: cargo check on MSRV (1.56.0)
-      run: cargo +1.56.0 check --workspace --locked
+    - name: cargo check on MSRV (1.60.0)
+      run: cargo +1.60.0 check --workspace --locked

@@ -66,11 +66,22 @@ pub struct MyName(String);
 
 That's it! The selected traits are automatically implemented for you.
 
+### Renamed dependencies and facades
+
+The generated code finds `newer-type` under the name your `Cargo.toml` gives it, so a renamed
+dependency (`nt = { package = "newer-type", .. }`, then `#[nt::implement(..)]`) works as is. If
+your crate reaches newer-type only through another crate that re-exports it, pass the path:
+
+```rust,ignore
+#[facade::newer_type::implement(SayHello, newer_type = ::facade::newer_type)]
+pub struct MyName(String);
+```
+
 ## Examples using `newer_type::traits`
 
-In order to implement traits defined in Rust's standard library for your newtype, there are empty definitions
-in [`newer_type_std`](https://docs.rs/newer-type-std/latest/newer_type-std/index.html) crate. You can pick up
-traits to be implemented from it.
+In order to implement traits defined in Rust's standard library for your newtype, there are definitions
+in [`newer_type_std`](https://docs.rs/newer-type-std/latest/newer_type-std/index.html) crate (the std trait
+copies of [`announce-std`](https://docs.rs/announce-std)). You can pick up traits to be implemented from it.
 
 ```rust,ignore
 # use newer_type::implement;

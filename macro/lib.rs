@@ -13,6 +13,27 @@ fn random() -> u64 {
         .finish()
 }
 
+/// The path to the `newer-type` crate for generated code, when the caller gives
+/// no `newer_type = ..`: the name under which the caller's `Cargo.toml` depends
+/// on `newer-type` (renamed dependencies included). Within newer-type itself,
+/// or when the manifest cannot be read (no Cargo), `::newer_type`. When the
+/// manifest has no `newer-type` dependency (the crate reaches it through a
+/// facade), `::newer_type` cannot resolve either, so this aborts with a hint.
+fn newer_type_crate(attr: &str) -> Path {
+    match proc_macro_crate::crate_name("newer-type") {
+        Ok(proc_macro_crate::FoundCrate::Name(name)) => {
+            let id = Ident::new(&name, proc_macro2::Span::call_site());
+            parse_quote!(::#id)
+        }
+        Err(proc_macro_crate::Error::CrateNotFound { .. }) => abort!(
+            proc_macro2::Span::call_site(),
+            "newer_type: this crate's Cargo.toml has no `newer-type` dependency, so the path to newer-type is unknown";
+            hint = "if newer-type is reached through another crate (a facade), pass its path: `#[{}(newer_type = ::facade::newer_type, ..)]`", attr
+        ),
+        _ => parse_quote!(::newer_type),
+    }
+}
+
 trait ResultExt {
     type R;
     fn unwrap_or_abort(self) -> Self::R;

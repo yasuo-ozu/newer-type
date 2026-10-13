@@ -1,6 +1,7 @@
 use crate::implement::{
     Adt, Argument as ImplementArgument, Implementor, Output as ImplementOutput,
 };
+use crate::target::TargetMeta;
 use proc_macro2::{Span, TokenStream};
 use proc_macro_error::abort;
 use std::collections::{HashMap, HashSet};
@@ -18,71 +19,95 @@ pub struct Input {
     pub adt: Adt,
     pub trait_def: ItemTrait,
     pub alternative: Option<Path>,
-    pub newer_type: Path,
+    /// Also implement the (empty, unsafe) `#[target(alternative = ..)]`
+    /// marker trait named by the implementor path.
+    pub marker_impl: bool,
     pub referrer: Referrer,
     pub repeater: Path,
     pub nonce: u64,
 }
 
+/// Receives `[__implement_internal!] Trait! => [META] { trait .. }
+/// (implementor) adt` (the announce wire protocol; `REST` is newer-type's own
+/// `(implementor) adt`).
 impl syn::parse::Parse for Input {
     fn parse(input: parse::ParseStream) -> Result<Self> {
-        let impl_output;
-        parenthesized!(impl_output in input);
+        let oi: announce::helper::Input = input.parse()?;
+        let entry = oi
+            .entries
+            .first()
+            .ok_or_else(|| input.error("newer_type: no trait definition was passed"))?;
         let ImplementOutput {
             implementor,
             target_def,
-        } = impl_output.parse()?;
-        let trait_def = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let alternative = if !input.peek(Token![,]) {
-            Some(input.parse()?)
+        } = oi.rest_as()?;
+        let trait_def = trait_of(entry)?;
+        let meta = entry
+            .find_meta("__target")
+            .map(TargetMeta::from_meta)
+            .transpose()?;
+        let (alternative, marker_impl, repeater, referrer, nonce) = if let Some(meta) = meta {
+            // A `#[target]` trait: metadata from the entry META.
+            let marker_impl = meta.alternative.is_some();
+            (
+                meta.alternative,
+                marker_impl,
+                Some(meta.repeater),
+                meta.referrer,
+                meta.nonce,
+            )
         } else {
-            None
+            // An announce-std mock (implement the real trait; there is no
+            // marker) or any other `#[announce]` trait. No Repeater
+            // exists for these.
+            let referrer = crate::target::trait_referrer(&trait_def);
+            (entry.mock(), false, None, referrer, 0)
         };
-        input.parse::<Token![,]>()?;
-        let newer_type = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let referrer = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let repeater = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let nonce: LitInt = input.parse()?;
-        let _ = input.parse::<Token![,]>();
-        if input.is_empty() {
-            Ok(Self {
-                implementor,
-                adt: target_def,
-                trait_def,
-                alternative,
-                newer_type,
-                referrer,
-                repeater,
-                nonce: nonce.base10_parse()?,
-            })
-        } else {
-            Err(input.error("Bad trailing tokens"))
-        }
+        let repeater = match repeater {
+            Some(r) => r,
+            None => {
+                if let Some(ty) = referrer.iter().next() {
+                    return Err(Error::new_spanned(
+                        ty,
+                        "newer_type: this trait was not defined with `#[target]`, so its \
+                         signatures must only use absolute paths (no Repeater is available)",
+                    ));
+                }
+                parse_quote!(__newer_type_no_repeater)
+            }
+        };
+        Ok(Self {
+            implementor,
+            adt: target_def,
+            trait_def,
+            alternative,
+            marker_impl,
+            referrer,
+            repeater,
+            nonce,
+        })
     }
 }
 
-impl template_quote::ToTokens for Input {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let impl_output = ImplementOutput {
-            implementor: self.implementor.clone(),
-            target_def: self.adt.clone(),
-        };
-        tokens.extend(quote! {(#impl_output)});
-        self.trait_def.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.alternative.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.newer_type.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.referrer.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.repeater.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        tokens.extend(quote! {#{self.nonce}})
+/// The trait of an entry: `#[target]` announces it wrapped in a same-named
+/// module (see `target::target`); announce-std mocks announce the trait itself.
+fn trait_of(entry: &announce::helper::Entry) -> Result<ItemTrait> {
+    match parse2::<Item>(entry.item.clone())? {
+        Item::Trait(t) => Ok(t),
+        Item::Mod(ItemMod {
+            content: Some((_, items)),
+            ..
+        }) => match <[Item; 1]>::try_from(items) {
+            Ok([Item::Trait(t)]) => Ok(t),
+            _ => Err(Error::new(
+                Span::call_site(),
+                "newer_type: expected a trait definition",
+            )),
+        },
+        _ => Err(Error::new(
+            Span::call_site(),
+            "newer_type: expected a trait definition",
+        )),
     }
 }
 
@@ -627,6 +652,9 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         let pred_bounds = quote! {#path <#(for arg in &implr_args){#arg,} #(for (name, par) in &detected_implicit_assoc_tys) {#name = #par,}>};
         quote! {
             #[automatically_derived]
+            // The forwarded methods are the trait's as this compiler has them (announce-std
+            // mocks are gated by the rustc version), which may be newer than the crate's MSRV.
+            #[allow(clippy::incompatible_msrv)]
             #{&input.trait_def.unsafety} impl < #impl_generics_modified > #trait_path for #{self.ident()} #{adt_generics.split_for_impl().1}
             where
                 #(if let Some(wc) = &adt_generics.where_clause) {
@@ -640,7 +668,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             {
                 #(#items)*
             }
-            #(if input.alternative.is_some()) {
+            #(if input.marker_impl) {
                 #[automatically_derived]
                 unsafe impl < #impl_generics_modified > #{&input.implementor.path} for #{self.ident()} #{adt_generics.split_for_impl().1}
                 where

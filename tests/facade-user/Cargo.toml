@@ -1,0 +1,9 @@
+[package]
+name = "newer-type-test-facade-user"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Depends on the facade only, not on newer-type.
+[dev-dependencies]
+newer-type-test-facade = { path = "../facade" }

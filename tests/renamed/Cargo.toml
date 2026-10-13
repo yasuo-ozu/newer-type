@@ -1,0 +1,9 @@
+[package]
+name = "newer-type-test-renamed"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# newer-type under another name: generated code must not assume `::newer_type`.
+[dependencies]
+nt = { package = "newer-type", path = "../.." }

@@ -131,3 +131,14 @@ fn test_write_enum_trait() {
         _ => panic!("unexpected variant"),
     }
 }
+
+// In the type namespace, `newer_type_std::fmt::<Trait>` is the real `core`
+// trait, also for traits whose name is a derive macro too (`Debug`).
+fn debug_string<T: newer_type_std::fmt::Debug>(t: &T) -> String {
+    format!("{:?}", t)
+}
+
+#[test]
+fn std_traits_are_usable_as_bounds() {
+    assert_eq!(debug_string(&MyFmtStruct { inner: 5 }), "5");
+}
