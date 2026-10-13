@@ -1,0 +1,21 @@
+# Its own workspace root, so that `nt-ws.workspace = true` (a rename inherited
+# from `[workspace.dependencies]`) is tested. Workspace inheritance needs cargo
+# 1.64, so this is kept out of the main workspace, which must parse with cargo
+# 1.60. Run it with `cargo test` in this directory.
+[package]
+name = "newer-type-test-renamed-ws"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+# Other spellings of an inherited dependency: an inline table, and a
+# `[target.'cfg'.dependencies]` table.
+members = ["inline", "target-table"]
+default-members = [".", "inline", "target-table"]
+
+[workspace.dependencies]
+nt-ws = { package = "newer-type", path = "../.." }
+
+[dependencies]
+nt-ws.workspace = true

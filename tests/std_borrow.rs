@@ -1,5 +1,5 @@
+use announce_std::borrow::{Borrow, BorrowMut};
 use newer_type::implement;
-use newer_type_std::borrow::{Borrow, BorrowMut};
 
 #[implement(
     Borrow<T>,

@@ -17,8 +17,13 @@
   | `repeater = Repeater` (a hand-written trait) | `repeater = crate::Repeater`, with `announce::define_repeater!(pub Repeater)`; needed only for relative types |
   | no `repeater` (one was made up) | relative types need a `repeater` or `allow_std_prelude = true`, or an absolute path |
   | `alternative = Path` | `mock = Path`; the empty `unsafe` marker trait of `alternative` is gone |
-  | `newer_type = Path` | `crate = Path` names the `announce` runtime; `#[implement(.., newer_type = Path)]` is unchanged |
+  | `newer_type = Path` | `crate = Path` names the `announce` runtime. `#[implement(.., newer_type = Path)]` is new in 0.4 (see Added) |
 
+- The crate `newer-type-std`, which only re-exported the std trait mocks of
+  [announce-std](https://docs.rs/announce-std) (version-gated by the rustc in use). Name the
+  traits through `announce-std` directly, with `announce-std = "0.1"` in `Cargo.toml`:
+  `#[implement(::announce_std::fmt::Display)]` instead of
+  `#[implement(newer_type_std::fmt::Display)]` (the modules and names are the same).
 - `newer_type_std::Repeater`, which only served `#[target(repeater = ..)]`.
 - The `type-leak` dependency of `newer-type-macro` (relative types are analysed by announce, which
   newer-type reads through `announce::type_leak`).
@@ -31,19 +36,23 @@
 - A trait announced with `repeater = ..` has its relative types rewritten to the repeater's
   projections with the arguments of the implementor (`#[implement(Trait<u8>)]`,
   `#[implement(for<U> Trait<U>)]`, omitted defaults), as announce's `type_leak` table describes.
-- `newer-type-std` re-exports the std trait mocks of `announce-std` (version-gated by the rustc in
-  use) instead of its own copies.
-- The path to newer-type used by `#[implement]` is chosen by the implementing crate:
-  `#[implement(.., newer_type = PATH)]`, defaulting to the name under which that crate's
-  `Cargo.toml` depends on `newer-type` (renamed dependencies work). A crate that reaches
-  newer-type only through a facade must pass `newer_type = ..`; otherwise the macro reports an
-  error with that hint. `newer_type = ..` may appear in any position.
+- `newer-type` depends on `announce` without its default feature `proc-macro-api` (syn,
+  proc-macro2 and type-leak, for proc-macro crates), so it builds for `#![no_std]` crates and
+  targets without std (`default-features = false`; this needs resolver 2, the default of
+  edition 2021). `newer-type-macro` runs on the host and keeps the feature.
 - MSRV is 1.60 (was 1.56): announce needs 1.57, and `proc-macro-crate` (renamed-dependency lookup)
   needs 1.60. The GAT-based tests still need 1.65.
 
 ### Added
 
-- `newer_type::announce`, a re-export of the `announce` crate.
+- `newer_type::announce`, a re-export of the `announce` crate. A crate that does not depend on
+  `announce` itself must pass `crate = ::newer_type::announce` to `#[announce]`.
+- `#[implement(.., newer_type = PATH)]` sets the path to newer-type for the generated code, in any
+  position (new in 0.4: `#[implement]` did not take it before). It defaults to the name under
+  which the implementing crate's `Cargo.toml` depends on `newer-type`: renamed dependencies work,
+  also those inherited from `[workspace.dependencies]` with `workspace = true`. A crate that reaches
+  newer-type only through a facade must pass `newer_type = ..`; otherwise the macro reports an
+  error with that hint.
 - Any `#[announce]` trait can be an `#[implement]` target, including one announced as a copy in an
   inline module of the same name (`emit_item = false`), whose paths resolve where `#[implement]`
   is used.
@@ -51,3 +60,7 @@
 ### Fixed
 
 - Nested `#[cfg]`s in an announced trait are evaluated in the defining crate.
+- `#[implement]` on an enum for a trait whose method takes `Self` in several parameters
+  (`#[implement(::announce_std::cmp::PartialEq)] enum E { A(u8), B(u8) }`) generated code that did
+  not compile (`expected &u8, found &E`). It now reports that such a trait cannot be forwarded for
+  an enum, because the arguments can be of different variants. A struct is not affected.

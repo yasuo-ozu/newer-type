@@ -30,9 +30,40 @@ jobs:
       env:
         CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
     - name: Run clippy
-      run: cargo +1.65.0 clippy --workspace --locked
-    - name: Run tests (base crate, std crate and the facade/renamed-dependency tests)
+      run: cargo +1.65.0 clippy --workspace --all-targets --locked
+    - name: Run tests (base crate, the std traits of announce-std and the facade/renamed-dependency tests)
       run: cargo +1.65.0 test --workspace --locked
+
+  # Targets and members that the jobs above and below do not cover. Recent
+  # toolchains, and no pinned lockfile. The UI tests need nightly: their
+  # snapshots were recorded with it (stable words some errors differently).
+  extra:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install toolchains
+      run: |
+        rustup toolchain install stable --profile minimal --component clippy --target x86_64-unknown-none
+        rustup toolchain install nightly --profile minimal
+    - name: Build the no_std probe for a target without std
+      # `announce` is used without its default feature `proc-macro-api`, so no
+      # proc-macro2 or syn is built for the target. `-p` keeps the other members
+      # out of the build. The tests of tests/nostd run in `cargo test --workspace`.
+      run: cargo +stable build -p newer-type-test-nostd --target x86_64-unknown-none --verbose
+    - name: Run the renamed-workspace-dependency tests (a separate workspace)
+      working-directory: tests/renamed-ws
+      run: cargo +stable test --verbose
+    - name: Run the UI tests
+      working-directory: tests/ui
+      run: cargo +nightly test --verbose
+    - name: Run clippy (all targets, warnings are errors)
+      run: cargo +stable clippy --workspace --all-targets -- -D warnings
+    - name: Build docs
+      run: cargo +stable doc --no-deps --workspace --verbose
+      env:
+        RUSTDOCFLAGS: -D warnings
 
   # Verify the libraries still compile on the declared MSRV. Same resolution
   # strategy as above: resolve MSRV-compatible versions with `stable`, then

@@ -1,4 +1,6 @@
-// The point of the test is to implement `ToString` directly.
+// The point of the test is to implement `ToString` directly. (`unknown_lints`:
+// older clippy does not know the lint.)
+#![allow(unknown_lints)]
 #![allow(clippy::to_string_trait_impl)]
 
 use newer_type::{announce::announce, implement};

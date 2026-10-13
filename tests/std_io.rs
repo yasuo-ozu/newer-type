@@ -2,10 +2,10 @@ use newer_type::implement;
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom, Write};
 
 #[implement(
-    newer_type_std::io::Read,
-    newer_type_std::io::Write,
-    newer_type_std::io::Seek,
-    newer_type_std::io::BufRead
+    ::announce_std::io::Read,
+    ::announce_std::io::Write,
+    ::announce_std::io::Seek,
+    ::announce_std::io::BufRead
 )]
 pub struct MyIoStruct {
     inner: Cursor<Vec<u8>>,
@@ -44,10 +44,10 @@ fn test_io_write() {
 }
 
 #[implement(
-    newer_type_std::io::Read,
-    newer_type_std::io::Write,
-    newer_type_std::io::BufRead,
-    newer_type_std::io::Seek
+    ::announce_std::io::Read,
+    ::announce_std::io::Write,
+    ::announce_std::io::BufRead,
+    ::announce_std::io::Seek
 )]
 pub enum MyIoEnum {
     A(Cursor<Vec<u8>>),

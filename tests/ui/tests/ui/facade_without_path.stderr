@@ -1,0 +1,8 @@
+error: newer_type: cannot tell the path to newer-type: no dependency on it was found in this crate's Cargo.toml (`workspace = true` entries included)
+ --> tests/ui/facade_without_path.rs:5:1
+  |
+5 | #[implement(newer_type_test_facade::UsesFoo)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: if newer-type is reached through another crate (a facade), or the dependency is declared in a way that is not recognized, pass its path: `#[implement(newer_type = ::facade::newer_type, ..)]`
+  = note: this error originates in the attribute macro `implement` (in Nightly builds, run with -Z macro-backtrace for more info)

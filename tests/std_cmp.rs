@@ -1,5 +1,5 @@
+use announce_std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use newer_type::implement;
-use newer_type_std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 
 #[implement(PartialEq, Eq, PartialOrd, Ord)]
 #[derive(Debug)]

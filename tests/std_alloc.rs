@@ -2,7 +2,7 @@ use newer_type::implement;
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::ptr;
 
-#[implement(newer_type_std::alloc::GlobalAlloc)]
+#[implement(::announce_std::alloc::GlobalAlloc)]
 pub struct MyAllocStruct {
     inner: System,
 }

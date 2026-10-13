@@ -4,18 +4,18 @@ use std::fmt::{self, Debug, Display};
 use std::io;
 
 #[implement(
-    newer_type_std::error::Error,
-    newer_type_std::fmt::Display,
-    newer_type_std::fmt::Debug
+    ::announce_std::error::Error,
+    ::announce_std::fmt::Display,
+    ::announce_std::fmt::Debug
 )]
 pub struct MyErrorStruct {
     inner: io::Error,
 }
 
 #[implement(
-    newer_type_std::error::Error,
-    newer_type_std::fmt::Display,
-    newer_type_std::fmt::Debug
+    ::announce_std::error::Error,
+    ::announce_std::fmt::Display,
+    ::announce_std::fmt::Debug
 )]
 pub enum MyErrorEnum {
     Io(io::Error),
@@ -23,18 +23,18 @@ pub enum MyErrorEnum {
 }
 
 #[implement(
-    newer_type_std::error::Error,
-    newer_type_std::fmt::Display,
-    newer_type_std::fmt::Debug
+    ::announce_std::error::Error,
+    ::announce_std::fmt::Display,
+    ::announce_std::fmt::Debug
 )]
 pub struct MyGenericErrorStruct<T: Error + Display + Debug> {
     inner: T,
 }
 
 #[implement(
-    newer_type_std::error::Error,
-    newer_type_std::fmt::Display,
-    newer_type_std::fmt::Debug
+    ::announce_std::error::Error,
+    ::announce_std::fmt::Display,
+    ::announce_std::fmt::Debug
 )]
 pub enum MyGenericErrorEnum<T: Error + Display + Debug> {
     Single(T),

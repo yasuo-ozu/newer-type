@@ -1,11 +1,11 @@
 use newer_type::implement;
 
-#[implement(for<Rhs> newer_type_std::ops::Add<Rhs>)]
-#[implement(for<Rhs> newer_type_std::ops::Sub<Rhs>)]
-#[implement(for<Rhs> newer_type_std::ops::Mul<Rhs>)]
-#[implement(for<Rhs> newer_type_std::ops::Div<Rhs>)]
-#[implement(for<Rhs> newer_type_std::ops::Rem<Rhs>)]
-#[implement(newer_type_std::ops::Neg)]
+#[implement(for<Rhs> ::announce_std::ops::Add<Rhs>)]
+#[implement(for<Rhs> ::announce_std::ops::Sub<Rhs>)]
+#[implement(for<Rhs> ::announce_std::ops::Mul<Rhs>)]
+#[implement(for<Rhs> ::announce_std::ops::Div<Rhs>)]
+#[implement(for<Rhs> ::announce_std::ops::Rem<Rhs>)]
+#[implement(::announce_std::ops::Neg)]
 #[derive(Copy, Clone)]
 pub struct MyOpsStruct {
     inner: i32,

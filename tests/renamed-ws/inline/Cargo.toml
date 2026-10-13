@@ -1,0 +1,8 @@
+[package]
+name = "newer-type-test-renamed-ws-inline"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+nt-ws = { workspace = true }

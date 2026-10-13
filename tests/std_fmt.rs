@@ -2,44 +2,44 @@ use newer_type::implement;
 use std::fmt::Write;
 
 #[implement(
-    newer_type_std::fmt::Display,
-    newer_type_std::fmt::Debug,
-    newer_type_std::fmt::Binary,
-    newer_type_std::fmt::Octal,
-    newer_type_std::fmt::LowerHex,
-    newer_type_std::fmt::UpperHex,
-    newer_type_std::fmt::LowerExp,
-    newer_type_std::fmt::UpperExp,
-    // newer_type_std::fmt::Pointer,
-    // newer_type_std::fmt::Write
+    ::announce_std::fmt::Display,
+    ::announce_std::fmt::Debug,
+    ::announce_std::fmt::Binary,
+    ::announce_std::fmt::Octal,
+    ::announce_std::fmt::LowerHex,
+    ::announce_std::fmt::UpperHex,
+    ::announce_std::fmt::LowerExp,
+    ::announce_std::fmt::UpperExp,
+    // ::announce_std::fmt::Pointer,
+    // ::announce_std::fmt::Write
 )]
 pub struct MyFmtStruct {
     inner: u32,
 }
 
-#[implement(newer_type_std::fmt::Display, newer_type_std::fmt::Debug)]
+#[implement(::announce_std::fmt::Display, ::announce_std::fmt::Debug)]
 pub struct MyGenericFmtStruct<T> {
     inner: T,
 }
 
-#[implement(newer_type_std::fmt::Display, newer_type_std::fmt::Debug)]
+#[implement(::announce_std::fmt::Display, ::announce_std::fmt::Debug)]
 pub enum MyFmtEnum {
     Text(String),
     Number(i32),
 }
 
-#[implement(newer_type_std::fmt::Debug)]
+#[implement(::announce_std::fmt::Debug)]
 pub enum MyGenericFmtEnum<T> {
     One(T),
     Many(Vec<T>),
 }
 
-#[implement(newer_type_std::fmt::Write)]
+#[implement(::announce_std::fmt::Write)]
 pub struct MyWriteStruct {
     inner: String,
 }
 
-#[implement(newer_type_std::fmt::Write)]
+#[implement(::announce_std::fmt::Write)]
 pub enum MyWriteEnum {
     A(String),
     B(std::ffi::OsString),
@@ -132,9 +132,9 @@ fn test_write_enum_trait() {
     }
 }
 
-// In the type namespace, `newer_type_std::fmt::<Trait>` is the real `core`
+// In the type namespace, `::announce_std::fmt::<Trait>` is the real `core`
 // trait, also for traits whose name is a derive macro too (`Debug`).
-fn debug_string<T: newer_type_std::fmt::Debug>(t: &T) -> String {
+fn debug_string<T: ::announce_std::fmt::Debug>(t: &T) -> String {
     format!("{:?}", t)
 }
 

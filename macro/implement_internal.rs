@@ -411,11 +411,22 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         }
         let (impl_generics, _, where_clause) = input.sig.generics.split_for_impl();
         let preds = find_pred_param(&input.sig.inputs);
+        let sig_ident = input.sig.ident.clone();
         if preds.is_empty() {
             abort!(&input.sig.inputs, "no `Self` type is found"; hint = "exact one `self` type is required in parameters");
-        } else if preds.len() > 1 && self.get_predicate_types(implementor).is_empty() {
-            // self is enum
-            abort!(&preds[1].1, "multiple `Self` type is not supported"; hint = preds[0].1.span() => "first `Self` type is here");
+        } else if preds.len() > 1 && !self.destructures_all_self_params() {
+            // An enum: each `Self` argument may be another variant, so the call
+            // cannot be forwarded to the field of one variant.
+            abort!(
+                &implementor.path,
+                "cannot implement `{}` for an enum: its method `{}` takes `Self` in more than one parameter (`{}` and `{}`)",
+                implementor.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default(),
+                &sig_ident,
+                &preds[0].1,
+                &preds[1].1;
+                note = "the arguments can be of different variants, and there is no general way to forward the call to the fields";
+                hint = "wrap the enum's inner type in a struct (a newtype), or implement this trait by hand"
+            );
         }
         if let ReturnType::Type(_, ty) = &input.sig.output {
             if let Some(reason) = check_has_self_ty(ty.as_ref()) {
@@ -467,6 +478,11 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
     }
 
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type>;
+
+    /// Whether every `Self` parameter of a method can be destructured to the
+    /// field of the implementor: a struct has one field for all of them, but
+    /// each `Self` argument of an enum can be another variant.
+    fn destructures_all_self_params(&self) -> bool;
 
     fn emit_impl(&self, input: &Input, nonce: u64) -> TokenStream {
         let mut path = input
@@ -608,6 +624,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             #[automatically_derived]
             // The forwarded methods are the trait's as this compiler has them (announce-std
             // mocks are gated by the rustc version), which may be newer than the crate's MSRV.
+            #[allow(unknown_lints)]
             #[allow(clippy::incompatible_msrv)]
             #{&input.trait_def.unsafety} impl < #impl_generics_modified > #trait_path for #{self.ident()} #{adt_generics.split_for_impl().1}
             where
@@ -679,6 +696,10 @@ impl EmitImpl for ItemEnum {
         &self.ident
     }
 
+    fn destructures_all_self_params(&self) -> bool {
+        false
+    }
+
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
         self.variants
             .iter()
@@ -726,6 +747,10 @@ impl EmitImpl for ItemStruct {
 
     fn ident(&self) -> &Ident {
         &self.ident
+    }
+
+    fn destructures_all_self_params(&self) -> bool {
+        true
     }
 
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {

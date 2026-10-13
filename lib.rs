@@ -13,10 +13,14 @@ pub use newer_type_macro::__implement_internal;
 /// pub trait MyTrait { /* .. */ }
 /// ```
 ///
-/// The option `crate = ..` tells `#[announce]` where its runtime is. It is
-/// optional for a crate that depends on `announce` directly (the default is the
-/// name that crate's `Cargo.toml` gives to the dependency). See [`implement`]
-/// for the rules of an announced trait.
+/// **The option `crate = ::newer_type::announce` is required** in a crate that
+/// has no dependency on `announce` of its own: `#[announce]` takes the path to
+/// its runtime from the dependency named `announce` in the crate's
+/// `Cargo.toml`, and a crate that has none fails with errors that do not name
+/// the cause (``cannot find `announce` in the list of imported crates``,
+/// ``cannot find attribute `__announce` in this scope``). A crate that depends
+/// on `announce` directly can omit the option. See [`implement`] for the rules
+/// of an announced trait.
 pub use announce;
 
 /// Implement a trait for given enum or struct. The trait should be announced
@@ -32,9 +36,11 @@ pub use announce;
 ///
 /// # Example
 ///
-/// ```ignore
+/// The traits of `std` are named through [`announce-std`](https://docs.rs/announce-std):
+///
+/// ```
 /// use newer_type::implement;
-/// use newer_type_std::{ops::Extend, cmp::PartialEq};
+/// use announce_std::{cmp::PartialEq, iter::Extend};
 ///
 /// #[implement(Extend<usize>)]
 /// struct Example1(Vec<usize>);
@@ -81,8 +87,7 @@ pub use announce;
 ///
 /// - `mock = path`: implement the trait at `path` instead of the announced one.
 ///   The announced trait mirrors the real one (this is how the traits of `std` are
-///   made available: see [`announce-std`](https://docs.rs/announce-std) and
-///   `newer-type-std`).
+///   made available: see [`announce-std`](https://docs.rs/announce-std)).
 /// - `repeater = crate::Repeater`: the signatures may name types that do not
 ///   resolve outside the defining crate (see below).
 /// - `crate = path`: the path to the `announce` crate; `::newer_type::announce`

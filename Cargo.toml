@@ -10,6 +10,10 @@ rust-version = "1.60"
 homepage = "https://github.com/yasuo-ozu/newer-type"
 keywords = ["newtype", "trait", "proc-macro", "attribute-macro"]
 categories = ["rust-patterns", "data-structures", "no-std"]
+# The root of the repository is this crate and the workspace: publish only the
+# crate itself (lib.rs includes README.md as its documentation), not the tests
+# (some are their own packages), the CI configuration or rustfmt.toml.
+include = ["lib.rs", "README.md", "CHANGELOG.md", "LICENSE", "Cargo.toml"]
 
 
 [lib]
@@ -17,12 +21,25 @@ path = "lib.rs"
 
 [dependencies]
 newer-type-macro = { path = "macro", version = "0.4.0" }
-announce = "0.1.0"
+# `#[announce]` and `define_repeater!` need only the definer side of announce on
+# the target. Its default feature `proc-macro-api` (syn, proc-macro2, type-leak,
+# for proc-macro crates) would break `#![no_std]` users and targets without std,
+# so it stays off here; newer-type-macro runs on the host and turns it on for
+# itself (this needs cargo's resolver 2, the default of edition 2021).
+announce = { version = "0.1.1", default-features = false }
+
+[dev-dependencies]
+# The std traits for the tests: `#[implement(::announce_std::fmt::Display)]`.
+announce-std = "0.1.1"
 
 [features]
 default = ["std"]
 std = []
 
 [workspace]
-members = [".", "macro", "std", "tests/facade", "tests/facade-user", "tests/renamed"]
+members = [".", "macro", "tests/facade", "tests/facade-user", "tests/renamed", "tests/nostd"]
+# `tests/ui` needs a newer rustc (trybuild); `tests/renamed-ws` is its own
+# workspace, because it tests a workspace-inherited rename (`nt.workspace = true`,
+# which needs cargo 1.64, while this workspace must parse with cargo 1.60).
+exclude = ["tests/ui", "tests/renamed-ws"]
 resolver = "2"

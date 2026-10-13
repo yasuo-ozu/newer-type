@@ -10,6 +10,7 @@ rust-version = "1.60"
 homepage = "https://github.com/yasuo-ozu/newer-type"
 keywords = ["newtype", "trait", "proc-macro", "attribute-macro"]
 categories = ["rust-patterns", "data-structures"]
+include = ["*.rs", "LICENSE", "Cargo.toml"]
 
 [lib]
 proc-macro = true
@@ -20,7 +21,10 @@ proc-macro2 = "1.0"
 template-quote = "0.4"
 proc-macro-error = { version = "1.0", default-features = false }
 proc-macro-crate = "1"
-announce = "0.1.0"
+# proc-macro-crate 1.x does not follow `workspace = true` dependencies: the
+# workspace manifest is read with toml_edit (the parser it uses itself).
+toml_edit = "0.19"
+announce = "0.1.1"
 
 [dependencies.syn]
 version = "2.0"

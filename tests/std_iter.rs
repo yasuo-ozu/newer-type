@@ -2,27 +2,27 @@ use newer_type::implement;
 use std::collections::VecDeque;
 use std::iter::{ExactSizeIterator, Extend, Iterator};
 
-#[implement(newer_type_std::iter::IntoIterator)]
-#[implement(for<A> newer_type_std::iter::Extend<A>)]
+#[implement(::announce_std::iter::IntoIterator)]
+#[implement(for<A> ::announce_std::iter::Extend<A>)]
 pub struct MyStruct1<TTT> {
     inner: Vec<TTT>,
 }
 
 #[implement(
-    newer_type_std::iter::Iterator,
-    newer_type_std::iter::FusedIterator,
-    newer_type_std::iter::ExactSizeIterator,
-    newer_type_std::iter::DoubleEndedIterator
+    ::announce_std::iter::Iterator,
+    ::announce_std::iter::FusedIterator,
+    ::announce_std::iter::ExactSizeIterator,
+    ::announce_std::iter::DoubleEndedIterator
 )]
 pub struct MyStruct2 {
     inner: std::vec::IntoIter<usize>,
 }
 
 #[implement(
-    newer_type_std::iter::Iterator,
-    newer_type_std::iter::FusedIterator,
-    newer_type_std::iter::ExactSizeIterator,
-    newer_type_std::iter::DoubleEndedIterator
+    ::announce_std::iter::Iterator,
+    ::announce_std::iter::FusedIterator,
+    ::announce_std::iter::ExactSizeIterator,
+    ::announce_std::iter::DoubleEndedIterator
 )]
 pub enum MyEnum<T> {
     VariantA(std::vec::IntoIter<T>),

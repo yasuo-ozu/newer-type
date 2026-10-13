@@ -1,1 +1,0 @@
-Fn / FnMut / FnOnce
