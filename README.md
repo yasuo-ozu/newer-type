@@ -130,8 +130,10 @@ of the traits of `std` are in [`announce-std`](https://docs.rs/announce-std).
 
 The generated code finds `newer-type` under the name your `Cargo.toml` gives it, so a renamed
 dependency (`nt = { package = "newer-type", .. }`, then `#[nt::implement(..)]`) works as is, also
-one inherited from `[workspace.dependencies]` (`nt.workspace = true`). If your crate reaches
-newer-type only through another crate that re-exports it, pass the path:
+one inherited from `[workspace.dependencies]` (`nt.workspace = true`). If your `Cargo.toml` lists no
+dependency on `newer-type`, the generated code uses `::newer_type`, which only resolves if the crate
+is linked under that name anyway. If your crate reaches newer-type through another crate that
+re-exports it, pass the path:
 
 ```rust,ignore
 #[facade::newer_type::implement(SayHello, newer_type = ::facade::newer_type)]
@@ -182,6 +184,12 @@ announce-std = "0.1" # only to implement the traits of `std`
 ```
 
 # Changes
+
+## `announce` is re-exported
+
+`newer_type::announce` is a public re-export of the whole [`announce`](https://docs.rs/announce) crate
+(`pub use announce;`), so a new major version of `announce` (0.2) is a breaking change of
+`newer-type` too, and a release of newer-type will follow it.
 
 ## `newer-type-std` is removed
 

@@ -41,18 +41,31 @@
   targets without std (`default-features = false`; this needs resolver 2, the default of
   edition 2021). `newer-type-macro` runs on the host and keeps the feature.
 - MSRV is 1.60 (was 1.56): announce needs 1.57, and `proc-macro-crate` (renamed-dependency lookup)
-  needs 1.60. The GAT-based tests still need 1.65.
+  needs 1.60. The GAT-based tests still need 1.65. Building on 1.60 needs an MSRV-aware
+  resolver (or a lockfile written with one): a plain `cargo generate-lockfile` picks versions that
+  need a newer rustc (`toml_edit 0.19.15` needs 1.66; `proc-macro2`, `syn` and `unicode-ident` need
+  1.71). Resolve with `CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback cargo generate-lockfile`
+  (cargo 1.84 or later), which settles on `toml_edit 0.19.8` among others. Pinning only
+  `toml_edit` (`cargo update -p toml_edit --precise 0.19.8`) is not enough.
+- `#[implement]` without a dependency on `newer-type` in the crate's `Cargo.toml` (a facade,
+  or a manifest that does not describe the real build, such as those generated for Bazel or
+  Buck2) generates code with `::newer_type`, as 0.3 did, instead of aborting. Pass
+  `newer_type = ..` when that path does not resolve.
+- The lookup of an inherited rename (`nt.workspace = true`) reads `[dependencies]` and
+  `[dev-dependencies]` (and their `[target]` forms), like proc-macro-crate, not
+  `[build-dependencies]`, and is cached per manifest modification time.
 
 ### Added
 
 - `newer_type::announce`, a re-export of the `announce` crate. A crate that does not depend on
-  `announce` itself must pass `crate = ::newer_type::announce` to `#[announce]`.
+  `announce` itself must pass `crate = ::newer_type::announce` to `#[announce]`. The re-export is
+  public API: `announce` 0.2 would be a breaking change of `newer-type` as well.
 - `#[implement(.., newer_type = PATH)]` sets the path to newer-type for the generated code, in any
   position (new in 0.4: `#[implement]` did not take it before). It defaults to the name under
   which the implementing crate's `Cargo.toml` depends on `newer-type`: renamed dependencies work,
-  also those inherited from `[workspace.dependencies]` with `workspace = true`. A crate that reaches
-  newer-type only through a facade must pass `newer_type = ..`; otherwise the macro reports an
-  error with that hint.
+  also those inherited from `[workspace.dependencies]` with `workspace = true`. A crate with no
+  such dependency gets `::newer_type`; one that reaches newer-type only through a facade must pass
+  `newer_type = ..`.
 - Any `#[announce]` trait can be an `#[implement]` target, including one announced as a copy in an
   inline module of the same name (`emit_item = false`), whose paths resolve where `#[implement]`
   is used.

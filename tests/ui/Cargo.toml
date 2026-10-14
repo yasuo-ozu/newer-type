@@ -1,7 +1,9 @@
 # Compile-fail tests. Kept outside the main workspace because trybuild needs a
 # newer rustc than newer-type's MSRV. Run with `cargo +nightly test` in this
 # directory: the snapshots (tests/ui/*.stderr) were recorded with a nightly
-# rustc, and stable words some errors differently.
+# rustc, and stable words some errors differently. The `.cargo/config.toml`
+# here puts the build output under the ignored `target/` of the repository
+# root, when cargo runs from this directory.
 [package]
 name = "newer-type-test-ui"
 version = "0.0.0"
@@ -11,7 +13,8 @@ publish = false
 [workspace]
 
 # The test files reach newer-type only through the facade, so that they have no
-# `newer-type` dependency of their own (see `facade_without_path.rs`).
+# `newer-type` dependency of their own (see `facade_without_path.rs`: the
+# generated code then uses `::newer_type`, which rustc cannot resolve).
 [dependencies]
 newer-type-test-facade = { path = "../facade" }
 announce-std = "0.1.1"

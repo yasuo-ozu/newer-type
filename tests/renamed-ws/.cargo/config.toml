@@ -1,0 +1,6 @@
+# This package is its own workspace, so its build output would land in
+# `tests/renamed-ws/target/`, which the root `.gitignore` (`/target`) does not
+# cover. The path is relative to the directory that holds `.cargo`. Applies when
+# cargo runs from this directory.
+[build]
+target-dir = "../../target/renamed-ws"
