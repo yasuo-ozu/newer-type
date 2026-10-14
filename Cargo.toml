@@ -2,7 +2,7 @@
 name = "newer-type"
 description = "Support defining newtype wrapper with inheriting trait implementations"
 authors = ["Yasuo Ozu <yasuo@ozu.email>"]
-version = "0.4.0"
+version = "0.4.1"
 repository = "https://github.com/yasuo-ozu/newer-type"
 edition = "2021"
 license = "MIT"
@@ -20,7 +20,7 @@ include = ["lib.rs", "README.md", "CHANGELOG.md", "LICENSE", "Cargo.toml"]
 path = "lib.rs"
 
 [dependencies]
-newer-type-macro = { path = "macro", version = "0.4.0" }
+newer-type-macro = { path = "macro", version = "0.4.1" }
 # `#[announce]` and `define_repeater!` need only the definer side of announce on
 # the target. Its default feature `proc-macro-api` (syn, proc-macro2, type-leak,
 # for proc-macro crates) would break `#![no_std]` users and targets without std,
