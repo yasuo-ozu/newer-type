@@ -38,8 +38,6 @@ std = []
 
 [workspace]
 members = [".", "macro", "tests/facade", "tests/facade-user", "tests/renamed", "tests/nostd"]
-# `tests/ui` needs a newer rustc (trybuild); `tests/renamed-ws` is its own
-# workspace, because it tests a workspace-inherited rename (`nt.workspace = true`,
-# which needs cargo 1.64, while this workspace must parse with cargo 1.60).
-exclude = ["tests/ui", "tests/renamed-ws"]
+# `tests/ui` needs a newer rustc (trybuild).
+exclude = ["tests/ui"]
 resolver = "2"

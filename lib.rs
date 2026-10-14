@@ -27,12 +27,11 @@ pub use announce;
 /// with the [`announce`](macro@announce::announce) attribute.
 ///
 /// `newer_type = PATH` (in any position) sets the path to this crate for the
-/// generated code. By default it is the name under which the calling crate's
-/// `Cargo.toml` depends on `newer-type` (so a renamed dependency
-/// `nt = { package = "newer-type", .. }` works). Without such a dependency the
-/// generated code uses `::newer_type`, which resolves only if the crate is
-/// linked under that name anyway. A crate that reaches newer-type only through
-/// a facade must pass the path instead:
+/// generated code, which is `::newer_type` by default. A crate that depends on
+/// `newer-type` under another name
+/// (`nt = { package = "newer-type", .. }`), or that reaches it only through a
+/// facade, must pass the path, because `::newer_type` does not resolve there:
+/// `#[implement(Trait, newer_type = ::nt)]` or
 /// `#[implement(Trait, newer_type = ::facade::newer_type)]`.
 ///
 /// # Example

@@ -133,9 +133,8 @@ impl Implementor {
 /// optional and may be given in any position.
 #[derive(PartialEq, Eq, Debug, Hash, Clone)]
 pub struct Argument {
-    /// Path to the `newer_type` crate, for callers that reach it through a
-    /// facade (default: resolved from the caller's `Cargo.toml`, see
-    /// `newer_type_crate`).
+    /// Path to the `newer_type` crate, for callers that rename the dependency
+    /// or reach it through a facade (default: `::newer_type`).
     pub newer_type: Option<Path>,
     pub implementors: Punctuated<Implementor, Token![,]>,
 }
@@ -267,7 +266,7 @@ pub fn implement(arg: &Argument, target_def: &Adt) -> TokenStream {
     let newer_type = arg
         .newer_type
         .clone()
-        .unwrap_or_else(crate::newer_type_crate);
+        .unwrap_or_else(|| parse_quote!(::newer_type));
     let imp: TokenStream = copied_target_def
         .collect_implementors()
         .into_iter()

@@ -1,8 +1,0 @@
-[package]
-name = "newer-type-test-renamed-ws-target-table"
-version = "0.0.0"
-edition = "2021"
-publish = false
-
-[target.'cfg(not(any()))'.dependencies]
-nt-ws = { workspace = true }

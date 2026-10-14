@@ -4,6 +4,7 @@ version = "0.0.0"
 edition = "2021"
 publish = false
 
-# newer-type under another name: generated code must not assume `::newer_type`.
+# newer-type under another name: `::newer_type` does not resolve here, so
+# `#[implement]` needs `newer_type = ::nt`.
 [dependencies]
 nt = { package = "newer-type", path = "../.." }

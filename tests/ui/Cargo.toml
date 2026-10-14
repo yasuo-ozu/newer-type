@@ -14,7 +14,7 @@ publish = false
 
 # The test files reach newer-type only through the facade, so that they have no
 # `newer-type` dependency of their own (see `facade_without_path.rs`: the
-# generated code then uses `::newer_type`, which rustc cannot resolve).
+# generated code uses `::newer_type` by default, which rustc cannot resolve).
 [dependencies]
 newer-type-test-facade = { path = "../facade" }
 announce-std = "0.1.1"

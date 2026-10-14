@@ -1,6 +1,6 @@
 //! Test-only crate: newer-type as a renamed dependency (`nt = { package =
-//! "newer-type" }`). The default path to newer-type is resolved from this
-//! crate's Cargo.toml.
+//! "newer-type" }`). The generated code reaches newer-type through
+//! `newer_type = ::nt`, as `::newer_type` does not resolve in this crate.
 
 #[nt::announce::announce(crate = ::nt::announce)]
 pub trait Hello {
@@ -13,7 +13,7 @@ impl Hello for u8 {
     }
 }
 
-#[nt::implement(Hello)]
+#[nt::implement(Hello, newer_type = ::nt)]
 pub struct Wrap(pub u8);
 
 #[cfg(test)]

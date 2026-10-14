@@ -2,51 +2,14 @@ use proc_macro::TokenStream as TokenStream1;
 use proc_macro_error::{abort, proc_macro_error};
 use syn::*;
 
-mod cratepath;
 mod implement;
 mod implement_internal;
-
-const PACKAGE: &str = "newer-type";
 
 fn random() -> u64 {
     use std::hash::{BuildHasher, Hasher};
     std::collections::hash_map::RandomState::new()
         .build_hasher()
         .finish()
-}
-
-/// The path to the `newer-type` crate for generated code, when the caller gives
-/// no `newer_type = ..`: the name under which the caller's `Cargo.toml` depends
-/// on `newer-type` (renamed dependencies included, also those inherited from
-/// `[workspace.dependencies]` with `workspace = true`). Within newer-type
-/// itself, when the manifest cannot be read (no Cargo), or when it lists no
-/// dependency on newer-type (a crate that reaches it through a facade, or a
-/// manifest that does not describe the real build, such as those generated for
-/// Bazel or Buck2), `::newer_type`. A manifest without the dependency cannot be
-/// told from a build that supplies the crate by other means (`--extern`), so
-/// this does not abort: if `::newer_type` does not resolve, rustc says so, and
-/// `newer_type = PATH` names the crate.
-fn newer_type_crate() -> Path {
-    match proc_macro_crate::crate_name(PACKAGE) {
-        Ok(proc_macro_crate::FoundCrate::Name(name)) => path_to(&name),
-        Err(proc_macro_crate::Error::CrateNotFound { .. }) => {
-            // proc-macro-crate does not follow `workspace = true`.
-            std::env::var_os("CARGO_MANIFEST_DIR")
-                .and_then(|dir| {
-                    cratepath::inherited_dependency_name(std::path::Path::new(&dir), PACKAGE)
-                })
-                .map_or_else(|| parse_quote!(::newer_type), |name| path_to(&name))
-        }
-        _ => parse_quote!(::newer_type),
-    }
-}
-
-fn path_to(crate_name: &str) -> Path {
-    let id = Ident::new(
-        &crate_name.replace('-', "_"),
-        proc_macro2::Span::call_site(),
-    );
-    parse_quote!(::#id)
 }
 
 trait ResultExt {

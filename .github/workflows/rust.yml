@@ -52,9 +52,6 @@ jobs:
       # proc-macro2 or syn is built for the target. `-p` keeps the other members
       # out of the build. The tests of tests/nostd run in `cargo test --workspace`.
       run: cargo +stable build -p newer-type-test-nostd --target x86_64-unknown-none --verbose
-    - name: Run the renamed-workspace-dependency tests (a separate workspace)
-      working-directory: tests/renamed-ws
-      run: cargo +stable test --verbose
     - name: Run the UI tests
       working-directory: tests/ui
       run: cargo +nightly test --verbose
@@ -67,8 +64,8 @@ jobs:
 
   # Verify the libraries still compile on the declared MSRV. Same resolution
   # strategy as above: resolve MSRV-compatible versions with `stable`, then
-  # `cargo check` with 1.60 against the pinned lockfile. 1.60 is the MSRV of
-  # proc-macro-crate's dependencies (announce itself needs 1.57).
+  # `cargo check` with 1.60, the declared `rust-version`, against the pinned
+  # lockfile (announce itself needs 1.57).
   msrv:
 
     runs-on: ubuntu-latest

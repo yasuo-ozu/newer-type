@@ -128,16 +128,19 @@ of the traits of `std` are in [`announce-std`](https://docs.rs/announce-std).
 
 ### Renamed dependencies and facades
 
-The generated code finds `newer-type` under the name your `Cargo.toml` gives it, so a renamed
-dependency (`nt = { package = "newer-type", .. }`, then `#[nt::implement(..)]`) works as is, also
-one inherited from `[workspace.dependencies]` (`nt.workspace = true`). If your `Cargo.toml` lists no
-dependency on `newer-type`, the generated code uses `::newer_type`, which only resolves if the crate
-is linked under that name anyway. If your crate reaches newer-type through another crate that
-re-exports it, pass the path:
+The generated code refers to `newer-type` as `::newer_type`. If your crate depends on it under
+another name (`nt = { package = "newer-type", .. }`), or reaches it through another crate that
+re-exports it, `::newer_type` does not resolve there: pass the path to `newer-type` with
+`newer_type = path` (in any position):
 
 ```rust,ignore
-#[facade::newer_type::implement(SayHello, newer_type = ::facade::newer_type)]
+// `nt = { package = "newer-type", .. }` in Cargo.toml
+#[nt::implement(SayHello, newer_type = ::nt)]
 pub struct MyName(String);
+
+// newer-type reached through the crate `facade`
+#[facade::newer_type::implement(SayHello, newer_type = ::facade::newer_type)]
+pub struct YourName(String);
 ```
 
 ### `no_std`
