@@ -1,0 +1,7 @@
+error: associated const bindings are not supported
+ --> tests/ui/binding_const.rs:4:95
+  |
+4 | #[implement(newer_type = ::newer_type_test_facade::newer_type, ::announce_std::iter::Iterator<N = 3>)]
+  |                                                                                               ^^^^^
+  |
+  = note: only associated types can be bound: `Trait<Assoc = Type>`

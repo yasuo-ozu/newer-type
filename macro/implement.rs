@@ -91,9 +91,22 @@ impl syn::parse::Parse for Implementor {
                 &seg.arguments
             {
                 args.iter().for_each(|arg| match arg {
-                    GenericArgument::AssocType(_)
-                    | GenericArgument::AssocConst(_)
-                    | GenericArgument::Constraint(_) => abort!(arg, "Not supported"),
+                    GenericArgument::AssocType(AssocType {
+                        generics: Some(_), ..
+                    }) => abort!(
+                        arg,
+                        "bindings of generic associated types are not supported"
+                    ),
+                    GenericArgument::AssocConst(_) => abort!(
+                        arg,
+                        "associated const bindings are not supported";
+                        note = "only associated types can be bound: `Trait<Assoc = Type>`"
+                    ),
+                    GenericArgument::Constraint(_) => abort!(
+                        arg,
+                        "associated type bounds are not supported";
+                        hint = "bind the associated type to a type: `Trait<Assoc = Type>`"
+                    ),
                     _ => (),
                 });
             }
@@ -110,6 +123,43 @@ impl syn::parse::Parse for Implementor {
 }
 
 impl Implementor {
+    /// The bindings of the associated types, `Item = u8` in
+    /// `#[implement(Iterator<Item = u8>)]`.
+    pub fn bindings(&self) -> impl Iterator<Item = &AssocType> {
+        self.last_args()
+            .into_iter()
+            .flatten()
+            .filter_map(|arg| match arg {
+                GenericArgument::AssocType(binding) => Some(binding),
+                _ => None,
+            })
+    }
+
+    /// The generic arguments of the trait except the bindings, in the order of
+    /// the parameters of the trait. `None` if there are none.
+    pub fn positional_args(&self) -> Option<Punctuated<GenericArgument, Token![,]>> {
+        let args: Punctuated<_, _> = self
+            .last_args()?
+            .iter()
+            .filter(|arg| !matches!(arg, GenericArgument::AssocType(_)))
+            .cloned()
+            .collect();
+        if args.is_empty() {
+            None
+        } else {
+            Some(args)
+        }
+    }
+
+    fn last_args(&self) -> Option<&Punctuated<GenericArgument, Token![,]>> {
+        match &self.path.segments.last()?.arguments {
+            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
+                Some(args)
+            }
+            _ => None,
+        }
+    }
+
     fn emit_impl(&self, target_def: &Adt, newer_type: &Path) -> TokenStream {
         let input = Output {
             implementor: self.clone(),

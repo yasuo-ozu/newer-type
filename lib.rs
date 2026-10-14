@@ -55,6 +55,27 @@ pub use announce;
 /// struct Example4<U>(U);
 /// ```
 ///
+/// # Associated type bindings and `async fn`
+///
+/// The associated types of the trait can be bound, `Trait<Assoc = Type>`
+/// (after the positional arguments, as in `for<T> Trait<T, Assoc = T>`). The
+/// binding is not an argument of the trait in the header of the impl: it
+/// constrains the wrapped types (`Inner: Trait<Assoc = Type>`) and is the
+/// associated type of the impl. For an enum it replaces the type parameter
+/// that is otherwise made up for the variants to share.
+///
+/// ```
+/// use newer_type::implement;
+///
+/// #[implement(::announce_std::iter::Iterator<Item = u8>)]
+/// struct Bytes<I>(I);
+///
+/// assert_eq!(Bytes(vec![1u8, 2].into_iter()).sum::<u8>(), 3);
+/// ```
+///
+/// A trait with `async fn` (Rust 1.75) is forwarded: the call to the wrapped
+/// type is awaited in the `async fn` of the impl.
+///
 /// # Announcing a trait
 ///
 /// `#[implement]` reads the trait through the trampoline that

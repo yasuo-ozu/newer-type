@@ -1,9 +1,11 @@
-# Compile-fail tests. Kept outside the main workspace because trybuild needs a
-# newer rustc than newer-type's MSRV. Run with `cargo +nightly test` in this
-# directory: the snapshots (tests/ui/*.stderr) were recorded with a nightly
-# rustc, and stable words some errors differently. The `.cargo/config.toml`
-# here puts the build output under the ignored `target/` of the repository
-# root, when cargo runs from this directory.
+# Compile-fail tests, and pass tests of features that need a newer rustc than
+# newer-type's MSRV (`async fn` in traits: tests/pass). Kept outside the main
+# workspace because trybuild needs a newer rustc than newer-type's MSRV too.
+# Run with `cargo +nightly test` in this directory: the snapshots
+# (tests/ui/*.stderr) were recorded with a nightly rustc, and stable words some
+# errors differently. The `.cargo/config.toml` here puts the build output under
+# the ignored `target/` of the repository root, when cargo runs from this
+# directory.
 [package]
 name = "newer-type-test-ui"
 version = "0.0.0"
