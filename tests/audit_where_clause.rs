@@ -9,13 +9,9 @@
 //!     error[E0277]: the trait bound `...: Clone` is not satisfied
 //!     note: required by a bound in `Wrap`
 
-use newer_type::{implement, target};
+use newer_type::{announce::announce, implement};
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
-
-#[target(repeater = Repeater)]
+#[announce(allow_std_prelude = true)]
 trait Speak {
     fn speak(&self) -> String;
 }

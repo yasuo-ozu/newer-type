@@ -11,13 +11,9 @@
 //!     error: type parameter `ASSOC_Item_...` should have an upper camel case name
 #![deny(non_camel_case_types)]
 
-use newer_type::{implement, target};
+use newer_type::{announce::announce, implement};
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
-
-#[target(repeater = Repeater)]
+#[announce]
 trait Producer {
     type Item;
     fn produce(&self) -> Self::Item;

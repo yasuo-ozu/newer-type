@@ -1,10 +1,11 @@
-use newer_type::{implement, target};
+// The point of the test is to implement `ToString` directly. (`unknown_lints`:
+// older clippy does not know the lint.)
+#![allow(unknown_lints)]
+#![allow(clippy::to_string_trait_impl)]
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
+use newer_type::{announce::announce, implement};
 
-#[target(alternative = ::std::string::ToString, newer_type = ::newer_type, repeater = Repeater)]
+#[announce(mock = ::std::string::ToString, allow_std_prelude = true)]
 pub trait ToString {
     fn to_string(&self) -> String;
 }
@@ -13,4 +14,11 @@ pub trait ToString {
 #[implement(ToString)]
 struct MyStruct {
     slot: u8,
+}
+
+#[test]
+fn mock_implements_std_to_string() {
+    // `MyStruct` is not `Display`: `to_string` is the one that `#[implement]`
+    // forwarded.
+    assert_eq!(MyStruct { slot: 7 }.to_string(), "7");
 }

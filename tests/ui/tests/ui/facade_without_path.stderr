@@ -1,0 +1,7 @@
+error[E0433]: cannot find `newer_type` in the list of imported crates
+ --> tests/ui/facade_without_path.rs:6:1
+  |
+6 | #[implement(newer_type_test_facade::UsesFoo)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ could not find `newer_type` in the list of imported crates
+  |
+  = note: this error originates in the attribute macro `implement` (in Nightly builds, run with -Z macro-backtrace for more info)

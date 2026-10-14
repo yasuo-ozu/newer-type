@@ -1,0 +1,8 @@
+error: cannot implement `PartialEq` for an enum: its method `eq` takes `Self` in more than one parameter (`self` and `other`)
+ --> tests/ui/enum_several_self.rs:6:64
+  |
+6 | #[implement(newer_type = ::newer_type_test_facade::newer_type, ::announce_std::cmp::PartialEq)]
+  |                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: the arguments can be of different variants, and there is no general way to forward the call to the fields
+  = help: wrap the enum's inner type in a struct (a newtype), or implement this trait by hand

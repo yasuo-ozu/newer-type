@@ -1,12 +1,14 @@
-use newer_type::{implement, target};
+use newer_type::{
+    announce::{announce, define_repeater},
+    implement,
+};
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
+define_repeater!(pub Repeater);
 
 mod m {
     type T = usize;
-    #[super::target(repeater = crate::Repeater)]
+    #[allow(dead_code)]
+    #[super::announce(repeater = crate::Repeater)]
     pub trait MyNewTrait {
         type MyType<'a>
         where

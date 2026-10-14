@@ -1,12 +1,8 @@
-use newer_type::{implement, target};
+use newer_type::{announce::announce, implement};
 use std::fmt::Debug;
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
-
 // 1. 基本的なトレイトの拡張
-#[target(repeater = Repeater)]
+#[announce]
 trait BasicTrait {
     fn get_number(&self) -> i32;
     fn double_number(&self) -> i32 {
@@ -33,7 +29,7 @@ fn test_basic_trait() {
 }
 
 // 2. トレイトジェネリクスを持つケース
-#[target(repeater = Repeater)]
+#[announce]
 trait GenericTrait<T> {
     fn process(&self, input: T) -> T;
 }
@@ -54,7 +50,7 @@ fn test_generic_trait() {
 }
 
 // 3. トレイトジェネリクスと関数ジェネリクスを持つケース
-#[target(repeater = Repeater)]
+#[announce]
 trait AdvancedTrait<T> {
     fn compute<U>(&self, value: T, extra: U) -> (T, U);
 }
@@ -76,7 +72,7 @@ fn test_advanced_trait() {
 }
 
 // 4. `where` 節を持つトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait ComplexTrait<T>
 where
     T: ::core::clone::Clone + ::core::fmt::Debug,
@@ -101,7 +97,7 @@ fn test_complex_trait() {
 }
 
 // 5. ジェネリックな `where` 節を持つケース
-#[target(repeater = Repeater)]
+#[announce]
 trait UltimateTrait<T, U>
 where
     T: ::core::fmt::Debug + ::core::clone::Clone,
@@ -127,7 +123,7 @@ fn test_ultimate_trait() {
 }
 
 // 6. 自由パラメータを持つトレイトの適用
-#[target(repeater = Repeater)]
+#[announce]
 trait FreeParamTrait<'a, A, B>
 where
     A: ::core::clone::Clone,
@@ -155,7 +151,7 @@ fn test_free_param_trait() {
 }
 
 // 7. 高度な自由パラメータ + `where` 節
-#[target(repeater = Repeater)]
+#[announce]
 trait AdvancedFreeParam<'a, A, B, C>
 where
     A: ::core::clone::Clone + ::core::fmt::Debug,
@@ -191,7 +187,7 @@ fn test_advanced_free_param_trait() {
 }
 
 // 2. 関数ポインタを扱うトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait FunctionPointerTrait {
     fn apply_fn(&self, f: fn(i32) -> i32) -> i32;
 }
@@ -212,7 +208,7 @@ fn test_function_pointer_trait() {
 }
 
 // 3. 関連型を持つトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait AssociatedTypeTrait {
     type Output;
     fn compute(&self) -> Self::Output;
@@ -236,7 +232,7 @@ fn test_associated_type_trait() {
 }
 
 // 5. `&mut self` を扱うトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait MutatingTrait {
     fn increment(&mut self);
 }
@@ -258,7 +254,7 @@ fn test_mutating_trait() {
 }
 
 // 7. 複数の型制約を持つトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait ComplexConstraintTrait<T>
 where
     T: ::core::fmt::Debug
@@ -286,7 +282,7 @@ fn test_complex_constraint_trait() {
 }
 
 // 6. Associated Consts を持つトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait AssociatedConstTrait {
     const VALUE: i32;
     fn get_const_value(&self) -> i32 {

@@ -1,0 +1,13 @@
+[package]
+name = "newer-type-test-nostd"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# A `#![no_std]` crate that announces a trait and uses `#[implement]`.
+# newer-type without its default feature `std`, and so `announce` without its
+# `proc-macro-api` feature, leave no proc-macro2/syn in the graph of the target:
+# `cargo build -p newer-type-test-nostd --target x86_64-unknown-none` must work
+# (CI does that). `tests/nostd.rs` calls the result from an ordinary std test.
+[dependencies]
+newer-type = { path = "../..", default-features = false }

@@ -17,8 +17,9 @@ The `newer-type` crate provides a procedural macro `#[implement(...)]` to reduce
 
 The `#[implement(...)]` macro currently supports automatic implementations for:
 
-- User-defined traits annotated with `#[target]`
-- Many traits from Rust `std`, see [`newer_type_std`](https://docs.rs/newer-type-std/latest/newer_type-std/index.html) crate documentation
+- User-defined traits announced with `#[announce]` (re-exported as `newer_type::announce`)
+- Many traits from Rust `std`, named through the [`announce-std`](https://docs.rs/announce-std) crate
+  (`#[implement(::announce_std::fmt::Display)]`, see below)
 
 ## Example
 
@@ -47,9 +48,12 @@ impl SayHello for MyName {
 ### With `newer-type` crate
 
 ```rust
-# use newer_type::{implement, target};
+use newer_type::{announce::announce, implement};
 
-#[target]
+// `crate = ::newer_type::announce` is required when your crate does not depend
+// on `announce` itself (see the note below).
+// `allow_std_prelude` lets the signatures name `String` without a path.
+#[announce(crate = ::newer_type::announce, allow_std_prelude = true)]
 trait SayHello {
     fn say_hello(&self) -> String;
 }
@@ -66,21 +70,104 @@ pub struct MyName(String);
 
 That's it! The selected traits are automatically implemented for you.
 
-## Examples using `newer_type::traits`
+> **Note: `crate = ::newer_type::announce`.** `newer-type` re-exports `announce`, so a crate needs
+> no dependency on it, but then `#[announce]` must be told where its runtime is:
+> `#[newer_type::announce::announce(crate = ::newer_type::announce)]`. Without the option the
+> macro looks for a dependency named `announce` in your `Cargo.toml`, and a crate that has none
+> fails with errors that do not name the cause: ``cannot find `announce` in the list of imported
+> crates`` and ``cannot find attribute `__announce` in this scope``. If you see either, add
+> `crate = ::newer_type::announce` (or depend on `announce` directly and drop the option).
 
-In order to implement traits defined in Rust's standard library for your newtype, there are empty definitions
-in [`newer_type_std`](https://docs.rs/newer-type-std/latest/newer_type-std/index.html) crate. You can pick up
-traits to be implemented from it.
+### Announcing a trait
+
+A trait is made available to `#[implement]` by announcing it with the
+[`announce`](https://docs.rs/announce) attribute, which this crate re-exports so that a crate
+without a dependency on `announce` can write
+`#[newer_type::announce::announce(crate = ::newer_type::announce)]`. `#[announce]` emits a
+`macro_rules!` with the name of the trait next to it; `#[implement(SayHello)]` calls it to read
+the trait, in any crate.
+
+`#[announce]` hands the signatures to other crates, so every path in the trait must mean the same
+there, and it reports one that would not, at the trait:
+
+- Traits (supertraits, bounds) are written with absolute paths: `crate::Base`, `::core::fmt::Debug`.
+- Types are primitive, absolute (`::std::string::String`, `crate::Local`), or the trait is
+  announced with `allow_std_prelude = true` (then `String`, `Vec<u8>`, `Option<T>` and the like are
+  fine) or with a `repeater`, which carries the types of the defining crate:
+
+```rust
+use newer_type::{announce::{announce, define_repeater}, implement};
+
+define_repeater!(pub Repeater); // at a path that the users of the trait can reach
+
+pub struct Meters(pub u32);
+
+// `Meters` is relative: it means something only in this crate.
+#[announce(crate = ::newer_type::announce, repeater = crate::Repeater)]
+trait Measure {
+    fn measure(&self) -> Meters;
+}
+
+impl Measure for u32 {
+    fn measure(&self) -> Meters {
+        Meters(*self)
+    }
+}
+
+#[implement(Measure)]
+struct Width(u32);
+
+fn main() {
+    assert_eq!(Width(3).measure().0, 3);
+}
+```
+
+To implement another trait instead of the announced one, mirror the real trait and name it with
+`mock = path`: `#[announce(mock = ::std::string::ToString)] trait ToString { .. }`. The mirrors
+of the traits of `std` are in [`announce-std`](https://docs.rs/announce-std).
+
+### Renamed dependencies and facades
+
+The generated code refers to `newer-type` as `::newer_type`. If your crate depends on it under
+another name (`nt = { package = "newer-type", .. }`), or reaches it through another crate that
+re-exports it, `::newer_type` does not resolve there: pass the path to `newer-type` with
+`newer_type = path` (in any position):
 
 ```rust,ignore
-# use newer_type::implement;
-use newer_type_std::{iter::IntoIterator, iter::Extend, cmp::PartialEq, cmp::Eq};
+// `nt = { package = "newer-type", .. }` in Cargo.toml
+#[nt::implement(SayHello, newer_type = ::nt)]
+pub struct MyName(String);
+
+// newer-type reached through the crate `facade`
+#[facade::newer_type::implement(SayHello, newer_type = ::facade::newer_type)]
+pub struct YourName(String);
+```
+
+### `no_std`
+
+With `default-features = false`, `newer-type` builds for `#![no_std]` crates and for targets
+without std (`cargo build --target x86_64-unknown-none`). It uses `announce` without its default
+feature `proc-macro-api` (syn and the like, which need std); with resolver 2, the default of
+edition 2021, that feature is enabled for the macro crate only, which runs on the host.
+
+## Implementing the traits of `std`
+
+The traits of Rust's standard library are mirrored by the
+[`announce-std`](https://docs.rs/announce-std) crate (add `announce-std = "0.1"` to your
+`Cargo.toml`). Name a trait through it, and `#[implement]` implements the real `std`/`core`
+trait:
+
+```rust
+use announce_std::{cmp::{Eq, PartialEq}, iter::{Extend, IntoIterator}};
+use newer_type::implement;
 
 #[implement(IntoIterator, Extend<T>, PartialEq, Eq)]
 struct MyVec<T>(Vec<T>);
 
-// now `MyVec` implements std::iter::IntoIterator, std::ops::Extend, std::cmp::{PartialEq, Eq}
+// now `MyVec` implements std::iter::IntoIterator, std::iter::Extend, std::cmp::{PartialEq, Eq}
 ```
+
+Or by full path, without `use`: `#[implement(::announce_std::fmt::Display)]`.
 
 # Use Cases
 This crate is particularly useful when:
@@ -95,8 +182,42 @@ Add this to your Cargo.toml:
 
 ```Cargo.toml
 [dependencies]
-newer-type = "0.1"
+newer-type = "0.4"
+announce-std = "0.1" # only to implement the traits of `std`
 ```
+
+# Changes
+
+## `announce` is re-exported
+
+`newer_type::announce` is a public re-export of the whole [`announce`](https://docs.rs/announce) crate
+(`pub use announce;`), so a new major version of `announce` (0.2) is a breaking change of
+`newer-type` too, and a release of newer-type will follow it.
+
+## `newer-type-std` is removed
+
+Name the traits of `std` through [`announce-std`](https://docs.rs/announce-std) directly
+(`announce-std = "0.1"` in your `Cargo.toml`): `newer-type-std` only re-exported it.
+
+| `newer-type-std` | now |
+| --- | --- |
+| `newer_type_std::fmt::Display` (every `newer_type_std::<module>::<Trait>`) | `::announce_std::fmt::Display` (the same modules and names) |
+| `newer-type-std = ".."` in `Cargo.toml` | `announce-std = "0.1"` |
+| `newer_type_std::Repeater` | removed (see `repeater` below) |
+
+## `#[target]` is removed
+
+A trait for `#[implement]` is now announced with [`#[announce]`](https://docs.rs/announce), whose
+trampolines `#[implement]` reads. Every option of `#[target(..)]` has a replacement, except the
+marker trait of `alternative`:
+
+| `#[target(..)]` | now |
+| --- | --- |
+| `#[target]` | `#[announce]`, or `#[newer_type::announce::announce(crate = ::newer_type::announce)]` in a crate that does not depend on `announce` |
+| `repeater = Repeater` (a hand-written `trait Repeater<T, const TRAIT_ID: u64, const NTH: usize>`) | `repeater = crate::Repeater`, with `announce::define_repeater!(pub Repeater)`. It is needed only for types that do not resolve outside the defining crate; absolute paths and primitive types need none, and `allow_std_prelude = true` accepts the bare names of the std prelude |
+| no `repeater` (one was made up, so any relative type worked) | relative types are an error unless there is a `repeater` or `allow_std_prelude = true`, or the paths are written absolute (`crate::Local`, `::std::string::String`) |
+| `alternative = Path` | `mock = Path`. The empty `unsafe` marker trait that `#[target]` emitted under the trait's name is gone: `#[implement]` implements the real trait only |
+| `newer_type = Path` | the `announce` runtime is `crate = Path` (`::newer_type::announce`). `#[implement(.., newer_type = Path)]` is new in 0.4: it names this crate for the generated code (see "Renamed dependencies and facades") |
 
 # License
 

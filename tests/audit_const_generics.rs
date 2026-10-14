@@ -15,13 +15,9 @@
 //! `error: const parameter '...' should have an upper case name`.
 #![deny(non_upper_case_globals)]
 
-use newer_type::{implement, target};
+use newer_type::{announce::announce, implement};
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
-
-#[target(repeater = Repeater)]
+#[announce]
 trait Len {
     fn length(&self) -> usize;
 }

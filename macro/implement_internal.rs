@@ -1,6 +1,8 @@
 use crate::implement::{
     Adt, Argument as ImplementArgument, Implementor, Output as ImplementOutput,
 };
+use announce::helper::TypeLeak;
+use announce::type_leak::{EncodeError, UseSite};
 use proc_macro2::{Span, TokenStream};
 use proc_macro_error::abort;
 use std::collections::{HashMap, HashSet};
@@ -10,79 +12,67 @@ use syn::visit::Visit;
 use syn::visit_mut::VisitMut;
 use syn::*;
 use template_quote::quote;
-use type_leak::Referrer;
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, Debug)]
 pub struct Input {
     pub implementor: Implementor,
     pub adt: Adt,
     pub trait_def: ItemTrait,
+    /// The trait to implement instead of the announced one: `#[announce(mock =
+    /// ..)]` (announce-std uses it for the std traits).
     pub alternative: Option<Path>,
-    pub newer_type: Path,
-    pub referrer: Referrer,
-    pub repeater: Path,
-    pub nonce: u64,
+    /// The table of the relative types of a trait announced with `repeater =
+    /// ..`.
+    pub type_leak: Option<TypeLeak>,
 }
 
+/// Receives `[__implement_internal!] Trait! => [META] { trait .. }
+/// (implementor) adt` (the announce wire protocol; `REST` is newer-type's own
+/// `(implementor) adt`).
 impl syn::parse::Parse for Input {
     fn parse(input: parse::ParseStream) -> Result<Self> {
-        let impl_output;
-        parenthesized!(impl_output in input);
+        let oi: announce::helper::Input = input.parse()?;
+        let entry = oi
+            .entries
+            .first()
+            .ok_or_else(|| input.error("newer_type: no trait definition was passed"))?;
         let ImplementOutput {
             implementor,
             target_def,
-        } = impl_output.parse()?;
-        let trait_def = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let alternative = if !input.peek(Token![,]) {
-            Some(input.parse()?)
-        } else {
-            None
-        };
-        input.parse::<Token![,]>()?;
-        let newer_type = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let referrer = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let repeater = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let nonce: LitInt = input.parse()?;
-        let _ = input.parse::<Token![,]>();
-        if input.is_empty() {
-            Ok(Self {
-                implementor,
-                adt: target_def,
-                trait_def,
-                alternative,
-                newer_type,
-                referrer,
-                repeater,
-                nonce: nonce.base10_parse()?,
-            })
-        } else {
-            Err(input.error("Bad trailing tokens"))
-        }
+        } = oi.rest_as()?;
+        Ok(Self {
+            implementor,
+            adt: target_def,
+            trait_def: trait_of(entry)?,
+            alternative: entry.mock(),
+            type_leak: entry.type_leak()?,
+        })
     }
 }
 
-impl template_quote::ToTokens for Input {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        let impl_output = ImplementOutput {
-            implementor: self.implementor.clone(),
-            target_def: self.adt.clone(),
-        };
-        tokens.extend(quote! {(#impl_output)});
-        self.trait_def.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.alternative.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.newer_type.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.referrer.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        self.repeater.to_tokens(tokens);
-        <Token![,]>::default().to_tokens(tokens);
-        tokens.extend(quote! {#{self.nonce}})
+/// The trait of an entry: an announced trait is delivered as written
+/// (announce-std mocks and `#[announce]` traits alike). A library that resolves
+/// the paths of a trait itself can announce a copy wrapped in an inline module
+/// of the same name (`#[announce(emit_item = false)] mod T { trait T {..} }`):
+/// its relative paths then resolve at the `#[implement]` site, and the module
+/// is unwrapped here.
+fn trait_of(entry: &announce::helper::Entry) -> Result<ItemTrait> {
+    match parse2::<Item>(entry.item.clone())? {
+        Item::Trait(t) => Ok(t),
+        Item::Mod(ItemMod {
+            content: Some((_, items)),
+            ..
+        }) => match <[Item; 1]>::try_from(items) {
+            Ok([Item::Trait(t)]) => Ok(t),
+            _ => Err(Error::new(
+                Span::call_site(),
+                "newer_type: expected a trait definition",
+            )),
+        },
+        _ => Err(Error::new(
+            Span::call_site(),
+            "newer_type: expected a trait definition",
+        )),
     }
 }
 
@@ -148,14 +138,14 @@ struct ModifyGenerics {
 
 impl ModifyGenerics {
     fn append_lifetime(&mut self, lt: &mut Lifetime, nonce: u64) {
-        let nlt = Lifetime::new(&format!("{}_newer_type_{}", &lt, nonce), lt.span());
+        let nlt = Lifetime::new(&format!("{}_newer_type_{}", lt, nonce), lt.span());
         self.lifetime_map.insert(lt.clone(), nlt.clone());
         *lt = nlt;
     }
 
     fn append_type(&mut self, ident: &mut Ident, nonce: u64) {
         let nident = Ident::new(
-            &format!("NewerTypeTypeParam{}Of{}", &ident, nonce),
+            &format!("NewerTypeTypeParam{}Of{}", ident, nonce),
             ident.span(),
         );
         self.type_map.insert(ident.clone(), parse_quote!(#nident));
@@ -164,7 +154,7 @@ impl ModifyGenerics {
 
     fn append_const(&mut self, ident: &mut Ident, nonce: u64) {
         let nident = Ident::new(
-            &format!("NEWER_TYPE_CONST_PARAM_{}_OF_{}", &ident, nonce),
+            &format!("NEWER_TYPE_CONST_PARAM_{}_OF_{}", ident, nonce),
             ident.span(),
         );
         self.const_map.insert(ident.clone(), parse_quote!(#nident));
@@ -409,7 +399,6 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         implementor: &Implementor,
         mut input: TraitItemFn,
         nonce: u64,
-        leaked_ty_visitor: &mut impl VisitMut,
     ) -> TokenStream {
         for param in input.sig.inputs.iter_mut() {
             if let FnArg::Typed(PatType { pat, .. }) = param {
@@ -422,19 +411,29 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         }
         let (impl_generics, _, where_clause) = input.sig.generics.split_for_impl();
         let preds = find_pred_param(&input.sig.inputs);
+        let sig_ident = input.sig.ident.clone();
         if preds.is_empty() {
             abort!(&input.sig.inputs, "no `Self` type is found"; hint = "exact one `self` type is required in parameters");
-        } else if preds.len() > 1 && self.get_predicate_types(implementor).is_empty() {
-            // self is enum
-            abort!(&preds[1].1, "multiple `Self` type is not supported"; hint = preds[0].1.span() => "first `Self` type is here");
+        } else if preds.len() > 1 && !self.destructures_all_self_params() {
+            // An enum: each `Self` argument may be another variant, so the call
+            // cannot be forwarded to the field of one variant.
+            abort!(
+                &implementor.path,
+                "cannot implement `{}` for an enum: its method `{}` takes `Self` in more than one parameter (`{}` and `{}`)",
+                implementor.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default(),
+                &sig_ident,
+                &preds[0].1,
+                &preds[1].1;
+                note = "the arguments can be of different variants, and there is no general way to forward the call to the fields";
+                hint = "wrap the enum's inner type in a struct (a newtype), or implement this trait by hand"
+            );
         }
         if let ReturnType::Type(_, ty) = &input.sig.output {
             if let Some(reason) = check_has_self_ty(ty.as_ref()) {
                 abort!(reason, "`Self` type is not allowed in return position");
             }
         }
-        let mut sig = input.sig.clone();
-        leaked_ty_visitor.visit_signature_mut(&mut sig);
+        let sig = input.sig.clone();
         let body = self.emit_body(&preds, implementor, |pred_params| {
             let process_pat = |mut pat: Pat| -> Pat{
                 struct PatVisitor;
@@ -480,12 +479,12 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
 
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type>;
 
-    fn emit_impl(
-        &self,
-        input: &Input,
-        nonce: u64,
-        leaked_ty_visitor: &mut impl VisitMut,
-    ) -> TokenStream {
+    /// Whether every `Self` parameter of a method can be destructured to the
+    /// field of the implementor: a struct has one field for all of them, but
+    /// each `Self` argument of an enum can be another variant.
+    fn destructures_all_self_params(&self) -> bool;
+
+    fn emit_impl(&self, input: &Input, nonce: u64) -> TokenStream {
         let mut path = input
             .alternative
             .clone()
@@ -534,7 +533,6 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                     &input.implementor,
                     tfn.clone(),
                     nonce,
-                    leaked_ty_visitor
                 );
                 quote! {
                     #(if &tfn.sig.ident == "ne") {
@@ -544,13 +542,11 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 }
             }
             TraitItem::Type(ttyp) => {
-                let mut ttyp = ttyp.clone();
-                leaked_ty_visitor.visit_trait_item_type_mut(&mut ttyp);
                 correct_assoc_tys.0.remove(&ttyp.ident);
                 let (impl_generics, ty_generics, where_clause) = ttyp.generics.split_for_impl();
                 if pred_tys.len() != 1 {
                     if ttyp.generics.params.is_empty() && where_clause.is_none() {
-                        let new_tp = Ident::new(&format!("NewerTypeAssoc{}Of{}", &ttyp.ident,nonce),ttyp.ident.span());
+                        let new_tp = Ident::new(&format!("NewerTypeAssoc{}Of{}", ttyp.ident,nonce),ttyp.ident.span());
                         let assoc_ty = &ttyp.ident;
                         implr_args.push(parse_quote! {#assoc_ty = #new_tp});
                         impl_generics_modified.push(parse_quote! {#new_tp});
@@ -581,7 +577,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 (
                     name.clone(),
                     Ident::new(
-                        &format!("NewerTypeImplAssoc{}Of{}", &name, nonce + n as u64),
+                        &format!("NewerTypeImplAssoc{}Of{}", name, nonce + n as u64),
                         Span::call_site(),
                     ),
                 )
@@ -589,7 +585,6 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             .collect::<Vec<_>>();
         let mut trait_supertraits = input.trait_def.supertraits.clone();
         for supertrait in trait_supertraits.iter_mut() {
-            leaked_ty_visitor.visit_type_param_bound_mut(supertrait);
             if let TypeParamBound::Trait(TraitBound { path, .. }) = supertrait {
                 if let Some(PathSegment { arguments, .. }) = path.segments.last_mut() {
                     if let PathArguments::None = &arguments {
@@ -627,6 +622,10 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         let pred_bounds = quote! {#path <#(for arg in &implr_args){#arg,} #(for (name, par) in &detected_implicit_assoc_tys) {#name = #par,}>};
         quote! {
             #[automatically_derived]
+            // The forwarded methods are the trait's as this compiler has them (announce-std
+            // mocks are gated by the rustc version), which may be newer than the crate's MSRV.
+            #[allow(unknown_lints)]
+            #[allow(clippy::incompatible_msrv)]
             #{&input.trait_def.unsafety} impl < #impl_generics_modified > #trait_path for #{self.ident()} #{adt_generics.split_for_impl().1}
             where
                 #(if let Some(wc) = &adt_generics.where_clause) {
@@ -639,20 +638,6 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                 #(#pred_tys: #pred_bounds),*
             {
                 #(#items)*
-            }
-            #(if input.alternative.is_some()) {
-                #[automatically_derived]
-                unsafe impl < #impl_generics_modified > #{&input.implementor.path} for #{self.ident()} #{adt_generics.split_for_impl().1}
-                where
-                    #(if let Some(wc) = &adt_generics.where_clause) {
-                        #(for pred in &wc.predicates) { #pred, }
-                    }
-                    #(#where_clause,)*
-                    #(for st in &trait_supertraits) {
-                        Self: #st,
-                    }
-                    #(#pred_tys: #pred_bounds),*
-                {}
             }
         }
     }
@@ -711,6 +696,10 @@ impl EmitImpl for ItemEnum {
         &self.ident
     }
 
+    fn destructures_all_self_params(&self) -> bool {
+        false
+    }
+
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
         self.variants
             .iter()
@@ -758,6 +747,10 @@ impl EmitImpl for ItemStruct {
 
     fn ident(&self) -> &Ident {
         &self.ident
+    }
+
+    fn destructures_all_self_params(&self) -> bool {
+        true
     }
 
     fn get_predicate_types(&self, implementor: &Implementor) -> Vec<Type> {
@@ -882,14 +875,47 @@ impl Input {
         }
     }
 
-    fn make_leaked_ty_visitor(&self, nonce: u64) -> impl VisitMut {
-        let encoded_generics =
-            type_leak::encode_generics_args_to_ty(self.trait_ty_generics().iter().flatten());
-        let repeater_path = self.repeater.clone();
-        self.referrer.clone().into_visitor(move |_, id| {
-            let repeater: Path = parse_quote!(#repeater_path<#encoded_generics, #nonce, #id>);
-            parse_quote!(<Self as #repeater>::Type)
-        })
+    /// Rewrites the relative types of a trait announced with `repeater = ..` to
+    /// their projections through the repeater (`<() as
+    /// $crate::Repeater<ARGS, ID, N>>::Type`), which resolve in any crate.
+    /// `ARGS` encodes the generics the type uses, here with the arguments
+    /// of the implementor (`#[implement(Trait<u8>)]`), so it must run
+    /// before `modify_trait_generics` replaces the parameters in the text.
+    fn apply_type_leak(&mut self) {
+        let type_leak = match &self.type_leak {
+            Some(type_leak) => type_leak.clone(),
+            None => return,
+        };
+        let params = self.trait_def.generics.params.clone();
+        let args = self.trait_ty_generics().unwrap_or_default();
+        let mut error = None;
+        let completed = type_leak
+            .referrer
+            .complete_args(&args, &params, |ty, ix, done| {
+                match type_leak.entry_args(ix, &UseSite::substituting(&params, done)) {
+                    Ok(args) => Type::Verbatim(type_leak.projection(ix, &args)),
+                    Err(e) => {
+                        error.get_or_insert(e);
+                        ty
+                    }
+                }
+            });
+        let completed = match completed {
+            Ok(completed) => completed,
+            // Too few arguments are reported by `modify_trait_generics`.
+            Err(EncodeError::MissingArgument(_)) => return,
+            Err(e) => abort!(&self.implementor, "{}", e),
+        };
+        let mut item = Item::Trait(self.trait_def.clone());
+        let result = match error {
+            Some(e) => Err(e),
+            None => type_leak.try_apply_at(&mut item, &UseSite::substituting(&params, &completed)),
+        };
+        match (result, item) {
+            (Ok(()), Item::Trait(trait_def)) => self.trait_def = trait_def,
+            (Err(e), _) => abort!(&self.implementor, "{}", e),
+            _ => unreachable!(),
+        }
     }
 
     fn trait_ty_generics(&self) -> Option<Punctuated<GenericArgument, Token![,]>> {
@@ -914,13 +940,11 @@ impl Input {
         let nonce = crate::random();
         input.modify_implr_generics(nonce);
         input.modify_adt_generics(nonce);
+        input.apply_type_leak();
         input.modify_trait_generics();
-        let mut leaked_ty_visitor = input.make_leaked_ty_visitor(self.nonce);
         match &input.adt {
-            Adt::Enum(item_enum) => item_enum.emit_impl(&input, nonce, &mut leaked_ty_visitor),
-            Adt::Struct(item_struct) => {
-                item_struct.emit_impl(&input, nonce, &mut leaked_ty_visitor)
-            }
+            Adt::Enum(item_enum) => item_enum.emit_impl(&input, nonce),
+            Adt::Struct(item_struct) => item_struct.emit_impl(&input, nonce),
         }
     }
 }

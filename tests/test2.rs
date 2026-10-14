@@ -1,11 +1,7 @@
-use newer_type::{implement, target};
-
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
+use newer_type::{announce::announce, implement};
 
 // 1. シンプルな newtype のテスト
-#[target(repeater = Repeater)]
+#[announce]
 trait MyTrait {
     fn value(&self) -> i32;
 }
@@ -49,7 +45,7 @@ fn test_partial_implement() {
 }
 
 // 3. 異なるトレイトの適用
-#[target(repeater = Repeater)]
+#[announce]
 trait AnotherTrait {
     fn double_value(&self) -> i32;
 }
@@ -81,7 +77,7 @@ fn test_tuple_newtype() {
 }
 
 // 5. ジェネリック型のサポート
-#[target(repeater = Repeater)]
+#[announce]
 trait GenericTrait<T> {
     fn get_value(&self) -> &T;
 }
@@ -155,7 +151,7 @@ fn test_vec_newtype() {
 }
 
 // 10. トレイトのデフォルト実装
-#[target(repeater = Repeater)]
+#[announce]
 trait DefaultTrait {
     fn default_value(&self) -> i32 {
         999

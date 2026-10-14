@@ -1,12 +1,8 @@
-use newer_type::{implement, target};
+use newer_type::{announce::announce, implement};
 use std::fmt::Debug;
 
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
-
 // 1. Associated Consts & Associated Types を持つトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait ComplexTrait {
     const SCALE: i32;
     type Output;
@@ -37,7 +33,7 @@ fn test_complex_trait() {
 }
 
 // 2. Associated Consts, Types, and Generics
-#[target(repeater = Repeater)]
+#[announce]
 trait MultiAssocTrait<T> {
     const FACTOR: T;
     type Result;
@@ -66,7 +62,7 @@ fn test_multi_assoc_trait() {
 }
 
 // 3. `where` 節を含むトレイト
-#[target(repeater = Repeater)]
+#[announce]
 trait ConstrainedTrait<T>
 where
     T: ::core::fmt::Debug + ::core::clone::Clone + ::core::default::Default,
@@ -97,7 +93,8 @@ fn test_constrained_trait() {
 }
 
 // 4. 自由パラメータを含む高度なトレイト
-#[target(repeater = Repeater)]
+#[allow(dead_code)]
+#[announce]
 trait FreeParamComplex<'a, A, B>
 where
     A: ::core::fmt::Debug + ::core::clone::Clone,

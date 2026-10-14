@@ -4,7 +4,6 @@ use syn::*;
 
 mod implement;
 mod implement_internal;
-mod target;
 
 fn random() -> u64 {
     use std::hash::{BuildHasher, Hasher};
@@ -27,12 +26,6 @@ impl<T> ResultExt for syn::Result<T> {
             Err(e) => abort!(e.to_compile_error(), e),
         }
     }
-}
-
-#[proc_macro_error]
-#[proc_macro_attribute]
-pub fn target(arg: TokenStream1, input: TokenStream1) -> TokenStream1 {
-    target::target(parse_macro_input!(arg), parse_macro_input!(input)).into()
 }
 
 #[proc_macro_error]

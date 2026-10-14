@@ -6,18 +6,15 @@
 //! * `&mut self` / by-value `self` forwarding through an *enum* (existing
 //!   mutation/consume tests only cover structs).
 //! * Wrapper with a lifetime parameter.
-//! * `#[target]` with no `repeater = ...` argument (the synthesized-repeater path
-//!   added in commit "Make repeater argument optional").
+//! * `#[announce]` without a `repeater` (the signatures use only names that
+//!   resolve in every crate: `allow_std_prelude`, absolute paths and
+//!   primitives).
 
-use newer_type::{implement, target};
-
-pub trait Repeater<T: ?Sized, const TRAIT_ID: u64, const NTH: usize> {
-    type Type;
-}
+use newer_type::{announce::announce, implement};
 
 // ---- GAT forwarding actually returns the right value -----------------------
 
-#[target(repeater = Repeater)]
+#[announce]
 trait Lender {
     type Out<'a>
     where
@@ -44,7 +41,7 @@ fn gat_forwarding_runtime() {
 
 // ---- enum `&mut self` and by-value `self` ----------------------------------
 
-#[target(repeater = Repeater)]
+#[announce]
 trait Counter {
     fn bump(&mut self);
     fn into_value(self) -> i32;
@@ -79,7 +76,7 @@ fn enum_mut_and_consume() {
 
 // ---- lifetime-parameterized wrapper ----------------------------------------
 
-#[target(repeater = Repeater)]
+#[announce(allow_std_prelude = true)]
 trait Speak {
     fn speak(&self) -> String;
 }
@@ -99,9 +96,9 @@ fn lifetime_wrapper() {
     assert_eq!(Borrowed(s.as_str()).speak(), "hi");
 }
 
-// ---- `#[target]` with no explicit repeater ---------------------------------
+// ---- `#[announce]` without a repeater --------------------------------------
 
-#[target]
+#[announce(allow_std_prelude = true)]
 trait Greet {
     fn greet(&self) -> String;
 }
@@ -116,6 +113,6 @@ impl Greet for String {
 struct Named(String);
 
 #[test]
-fn target_without_repeater_argument() {
+fn announce_without_repeater() {
     assert_eq!(Named(String::from("bob")).greet(), "hi bob");
 }
