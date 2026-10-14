@@ -188,36 +188,8 @@ announce-std = "0.1" # only to implement the traits of `std`
 
 # Changes
 
-## `announce` is re-exported
-
-`newer_type::announce` is a public re-export of the whole [`announce`](https://docs.rs/announce) crate
-(`pub use announce;`), so a new major version of `announce` (0.2) is a breaking change of
-`newer-type` too, and a release of newer-type will follow it.
-
-## `newer-type-std` is removed
-
-Name the traits of `std` through [`announce-std`](https://docs.rs/announce-std) directly
-(`announce-std = "0.1"` in your `Cargo.toml`): `newer-type-std` only re-exported it.
-
-| `newer-type-std` | now |
-| --- | --- |
-| `newer_type_std::fmt::Display` (every `newer_type_std::<module>::<Trait>`) | `::announce_std::fmt::Display` (the same modules and names) |
-| `newer-type-std = ".."` in `Cargo.toml` | `announce-std = "0.1"` |
-| `newer_type_std::Repeater` | removed (see `repeater` below) |
-
-## `#[target]` is removed
-
-A trait for `#[implement]` is now announced with [`#[announce]`](https://docs.rs/announce), whose
-trampolines `#[implement]` reads. Every option of `#[target(..)]` has a replacement, except the
-marker trait of `alternative`:
-
-| `#[target(..)]` | now |
-| --- | --- |
-| `#[target]` | `#[announce]`, or `#[newer_type::announce::announce(crate = ::newer_type::announce)]` in a crate that does not depend on `announce` |
-| `repeater = Repeater` (a hand-written `trait Repeater<T, const TRAIT_ID: u64, const NTH: usize>`) | `repeater = crate::Repeater`, with `announce::define_repeater!(pub Repeater)`. It is needed only for types that do not resolve outside the defining crate; absolute paths and primitive types need none, and `allow_std_prelude = true` accepts the bare names of the std prelude |
-| no `repeater` (one was made up, so any relative type worked) | relative types are an error unless there is a `repeater` or `allow_std_prelude = true`, or the paths are written absolute (`crate::Local`, `::std::string::String`) |
-| `alternative = Path` | `mock = Path`. The empty `unsafe` marker trait that `#[target]` emitted under the trait's name is gone: `#[implement]` implements the real trait only |
-| `newer_type = Path` | the `announce` runtime is `crate = Path` (`::newer_type::announce`). `#[implement(.., newer_type = Path)]` is new in 0.4: it names this crate for the generated code (see "Renamed dependencies and facades") |
+See [CHANGELOG.md](https://github.com/yasuo-ozu/newer-type/blob/main/CHANGELOG.md),
+including how to migrate from 0.3 (`#[target]` and `newer-type-std` were removed in 0.4).
 
 # License
 
