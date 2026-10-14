@@ -1,0 +1,7 @@
+error: associated type bounds are not supported
+ --> tests/ui/binding_bound.rs:4:95
+  |
+4 | #[implement(newer_type = ::newer_type_test_facade::newer_type, ::announce_std::iter::Iterator<Item: Copy>)]
+  |                                                                                               ^^^^^^^^^^
+  |
+  = help: bind the associated type to a type: `Trait<Assoc = Type>`

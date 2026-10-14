@@ -1,0 +1,15 @@
+error: trait `Iterator` has no associated type `Itm`
+ --> tests/ui/binding_unknown_assoc.rs:4:95
+  |
+4 | #[implement(newer_type = ::newer_type_test_facade::newer_type, ::announce_std::iter::Iterator<Itm = u8>)]
+  |                                                                                               ^^^
+  |
+  = note: the associated types of the trait are `Item`
+
+error: trait `Display` has no associated type `Item`
+ --> tests/ui/binding_unknown_assoc.rs:7:93
+  |
+7 | #[implement(newer_type = ::newer_type_test_facade::newer_type, ::announce_std::fmt::Display<Item = u8>)]
+  |                                                                                             ^^^^
+  |
+  = note: the trait has no associated types

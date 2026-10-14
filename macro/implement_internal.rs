@@ -333,6 +333,16 @@ fn find_pred_param<'a>(
         .collect()
 }
 
+/// `name = ty`, a binding of an associated type.
+fn assoc_binding(ident: Ident, ty: Type) -> GenericArgument {
+    GenericArgument::AssocType(AssocType {
+        ident,
+        generics: None,
+        eq_token: Token![=](Span::call_site()),
+        ty,
+    })
+}
+
 fn update_pat_names(pat: &mut Pat, f: &mut impl FnMut(Span) -> Ident) {
     match pat {
         Pat::Ident(PatIdent { subpat, .. }) => {
@@ -461,6 +471,7 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                         }
                     }
                 )
+                #(if sig.asyncness.is_some()) { .await }
             }
         });
         quote! {
@@ -525,7 +536,21 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
         .collect::<Punctuated<_, Token![,]>>();
         let pred_tys = self.get_predicate_types(&input.implementor);
         let mut impl_generics_modified = impl_generics;
+        // The bindings of the implementor (`Item = u8`) are not in the header
+        // of the impl, but constrain the types in the where-clause.
+        let bindings = input.implementor.bindings().collect::<Vec<_>>();
+        let bound_ty = |name: &Ident| {
+            bindings
+                .iter()
+                .find(|binding| &binding.ident == name)
+                .map(|binding| binding.ty.clone())
+        };
         let mut implr_args = trait_ty_generics.unwrap_or_default();
+        implr_args.extend(
+            bindings
+                .iter()
+                .map(|binding| GenericArgument::AssocType((*binding).clone())),
+        );
         let items = input.trait_def.items.iter().map(|trait_item| match trait_item {
             TraitItem::Fn(tfn) => {
                 let tokens = self.emit_trait_fn(
@@ -544,11 +569,19 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             TraitItem::Type(ttyp) => {
                 correct_assoc_tys.0.remove(&ttyp.ident);
                 let (impl_generics, ty_generics, where_clause) = ttyp.generics.split_for_impl();
-                if pred_tys.len() != 1 {
+                let bound = if ttyp.generics.params.is_empty() {
+                    bound_ty(&ttyp.ident)
+                } else {
+                    None
+                };
+                if let Some(bound) = bound {
+                    quote! {
+                        type #{&ttyp.ident} = #bound #where_clause;
+                    }
+                } else if pred_tys.len() != 1 {
                     if ttyp.generics.params.is_empty() && where_clause.is_none() {
                         let new_tp = Ident::new(&format!("NewerTypeAssoc{}Of{}", ttyp.ident,nonce),ttyp.ident.span());
-                        let assoc_ty = &ttyp.ident;
-                        implr_args.push(parse_quote! {#assoc_ty = #new_tp});
+                        implr_args.push(assoc_binding(ttyp.ident.clone(), parse_quote!(#new_tp)));
                         impl_generics_modified.push(parse_quote! {#new_tp});
                         quote! {
                             type #{&ttyp.ident} = #new_tp;
@@ -569,18 +602,21 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
             ),
             o => abort!(o, "Not supported"),
         }).collect::<Vec<_>>();
+        // The associated types of the supertraits that the trait mentions: the
+        // type of the binding of the implementor, or a new parameter.
         let detected_implicit_assoc_tys = correct_assoc_tys
             .0
             .iter()
             .enumerate()
-            .map(|(n, name)| {
-                (
-                    name.clone(),
-                    Ident::new(
+            .map(|(n, name)| match bound_ty(name) {
+                Some(ty) => (name.clone(), ty, None),
+                None => {
+                    let par = Ident::new(
                         &format!("NewerTypeImplAssoc{}Of{}", name, nonce + n as u64),
                         Span::call_site(),
-                    ),
-                )
+                    );
+                    (name.clone(), parse_quote!(#par), Some(par))
+                }
             })
             .collect::<Vec<_>>();
         let mut trait_supertraits = input.trait_def.supertraits.clone();
@@ -601,25 +637,20 @@ trait EmitImpl: Sized + Clone + template_quote::ToTokens {
                         ..
                     }) = arguments
                     {
-                        for (ident, par) in detected_implicit_assoc_tys.iter().cloned() {
-                            args.push(GenericArgument::AssocType(AssocType {
-                                ident,
-                                generics: None,
-                                eq_token: Token![=](Span::call_site()),
-                                ty: parse_quote!(#par),
-                            }));
+                        for (ident, ty, _) in detected_implicit_assoc_tys.iter().cloned() {
+                            args.push(assoc_binding(ident, ty));
                         }
                     }
                 }
             }
         }
-        impl_generics_modified.extend(
-            detected_implicit_assoc_tys
-                .iter()
-                .map(|(_, par)| parse_quote! {#par})
-                .collect::<Vec<GenericParam>>(),
-        );
-        let pred_bounds = quote! {#path <#(for arg in &implr_args){#arg,} #(for (name, par) in &detected_implicit_assoc_tys) {#name = #par,}>};
+        for (name, _, par) in &detected_implicit_assoc_tys {
+            if let Some(par) = par {
+                impl_generics_modified.push(parse_quote! {#par});
+                implr_args.push(assoc_binding(name.clone(), parse_quote!(#par)));
+            }
+        }
+        let pred_bounds = quote! {#path <#(for arg in &implr_args){#arg,}>};
         quote! {
             #[automatically_derived]
             // The forwarded methods are the trait's as this compiler has them (announce-std
@@ -918,6 +949,9 @@ impl Input {
         }
     }
 
+    /// The arguments of the trait given to the implementor, without the
+    /// bindings of the associated types: they are not arguments of the trait
+    /// in the header of the impl, and do not map to its parameters.
     fn trait_ty_generics(&self) -> Option<Punctuated<GenericArgument, Token![,]>> {
         match &self
             .implementor
@@ -927,17 +961,71 @@ impl Input {
             .unwrap_or_else(|| abort!(&self.implementor, "Path without segments is not supported"))
             .arguments
         {
-            PathArguments::None => None,
-            PathArguments::AngleBracketed(AngleBracketedGenericArguments { args, .. }) => {
-                Some(args.clone())
+            PathArguments::None | PathArguments::AngleBracketed(_) => {
+                self.implementor.positional_args()
             }
             _ => abort!(&self.implementor, "bad generic arguments"),
+        }
+    }
+
+    /// Reports a binding of an associated type that the trait does not have.
+    /// A trait with supertraits may have it from them, which rustc reports.
+    fn check_bindings(&self) {
+        let trait_def = &self.trait_def;
+        let mut seen = HashSet::new();
+        for binding in self.implementor.bindings() {
+            if !seen.insert(&binding.ident) {
+                abort!(
+                    binding.ident,
+                    "associated type `{}` is bound more than once",
+                    binding.ident
+                );
+            }
+        }
+        let has_supertraits = trait_def
+            .supertraits
+            .iter()
+            .any(|bound| matches!(bound, TypeParamBound::Trait(_)))
+            || trait_def.generics.where_clause.iter().any(|wc| {
+                wc.predicates.iter().any(|pred| {
+                    matches!(pred, WherePredicate::Type(PredicateType {
+                        bounded_ty: Type::Path(TypePath { qself: None, path }), ..
+                    }) if path.is_ident("Self"))
+                })
+            });
+        if has_supertraits {
+            return;
+        }
+        let names = trait_def
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                TraitItem::Type(ttyp) => Some(ttyp.ident.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for binding in self.implementor.bindings() {
+            if !names.contains(&binding.ident) {
+                abort!(
+                    binding.ident,
+                    "trait `{}` has no associated type `{}`", trait_def.ident, binding.ident;
+                    note = "{}", if names.is_empty() {
+                        "the trait has no associated types".to_string()
+                    } else {
+                        format!(
+                            "the associated types of the trait are {}",
+                            names.iter().map(|n| format!("`{}`", n)).collect::<Vec<_>>().join(", ")
+                        )
+                    };
+                )
+            }
         }
     }
 
     pub fn implement_internal(&self) -> TokenStream {
         let mut input = self.clone();
         let nonce = crate::random();
+        input.check_bindings();
         input.modify_implr_generics(nonce);
         input.modify_adt_generics(nonce);
         input.apply_type_leak();

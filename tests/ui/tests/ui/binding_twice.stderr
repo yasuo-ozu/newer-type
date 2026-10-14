@@ -1,0 +1,5 @@
+error: associated type `Item` is bound more than once
+ --> tests/ui/binding_twice.rs:4:106
+  |
+4 | #[implement(newer_type = ::newer_type_test_facade::newer_type, ::announce_std::iter::Iterator<Item = u8, Item = u8>)]
+  |                                                                                                          ^^^^

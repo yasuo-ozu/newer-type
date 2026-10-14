@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.1] — Unreleased
+
+### Added
+
+- Associated type bindings in `#[implement]`:
+  `#[implement(::announce_std::iter::Iterator<Item = u8>)]`, `#[implement(Conv<u8, Out = String>)]`,
+  `#[implement(for<T> Conv<T, Out = T>)]`. The binding is not part of the trait in the header of
+  the impl: it constrains the wrapped types (`Inner: Trait<Item = u8>`) and sets the associated
+  type of the impl. For an enum it is used instead of the type parameter that is made up for the
+  variants to share. Bounds (`Item: Bound`), const bindings and bindings of generic associated
+  types are rejected with an explanatory message, as are a binding of an associated type that the
+  trait does not have, and a type bound twice.
+- `async fn` in an announced trait is forwarded to the wrapped type with `.await` (a trait with
+  `async fn` needs Rust 1.75). The generated impl did not compile before.
+
 ## [0.4.0] — 2026-10-15
 
 ### Removed
