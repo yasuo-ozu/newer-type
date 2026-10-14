@@ -186,11 +186,6 @@ newer-type = "0.4"
 announce-std = "0.1" # only to implement the traits of `std`
 ```
 
-# Changes
-
-See [CHANGELOG.md](https://github.com/yasuo-ozu/newer-type/blob/main/CHANGELOG.md),
-including how to migrate from 0.3 (`#[target]` and `newer-type-std` were removed in 0.4).
-
 # License
 
 MIT
