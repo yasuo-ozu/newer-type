@@ -182,7 +182,7 @@ Add this to your Cargo.toml:
 
 ```Cargo.toml
 [dependencies]
-newer-type = "0.4"
+newer-type = "0.5"
 announce-std = "0.2" # only to implement the traits of `std`
 ```
 
