@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Built on [announce](https://docs.rs/announce) 0.2 (and `announce-std = "0.2"` for the traits of
+  `std`). `newer_type::announce` is the `announce` 0.2 crate, so its changes apply to a trait
+  announced through the re-export: several `#[announce]`s on one trait merge, and
+  `#[derive(Announce)]` is gone (see the announce changelog). `#[implement]` is unchanged, and the
+  MSRV stays 1.60.
+
 ## [0.4.1] — 2026-10-15
 
 ### Added

@@ -153,7 +153,7 @@ edition 2021, that feature is enabled for the macro crate only, which runs on th
 ## Implementing the traits of `std`
 
 The traits of Rust's standard library are mirrored by the
-[`announce-std`](https://docs.rs/announce-std) crate (add `announce-std = "0.1"` to your
+[`announce-std`](https://docs.rs/announce-std) crate (add `announce-std = "0.2"` to your
 `Cargo.toml`). Name a trait through it, and `#[implement]` implements the real `std`/`core`
 trait:
 
@@ -183,7 +183,7 @@ Add this to your Cargo.toml:
 ```Cargo.toml
 [dependencies]
 newer-type = "0.4"
-announce-std = "0.1" # only to implement the traits of `std`
+announce-std = "0.2" # only to implement the traits of `std`
 ```
 
 # License
