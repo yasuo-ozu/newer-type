@@ -22,3 +22,13 @@ fn newer_type_argument_last() {
     assert_eq!(WrapLast(4).get(fac::Foo(1)), 5);
     assert_eq!(fac::FacadeWrap(1).get(fac::Foo(1)), 2);
 }
+
+// A trait that is announced twice (the announcements merge).
+#[fac::newer_type::implement(fac::Merged, newer_type = ::newer_type_test_facade::newer_type)]
+struct WrapMerged(u8);
+
+#[test]
+fn merged_announcements() {
+    use fac::Merged;
+    assert_eq!(WrapMerged(5).label(), "u8:5");
+}

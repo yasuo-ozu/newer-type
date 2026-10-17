@@ -36,6 +36,21 @@ impl MakesLocal for u8 {
     }
 }
 
+/// Announced twice: the announcements merge through the hidden runner
+/// attribute, which is reached through `crate = ::newer_type::announce` as
+/// well.
+#[newer_type::announce::announce(crate = ::newer_type::announce)]
+#[newer_type::announce::announce(crate = ::newer_type::announce, allow_std_prelude = true)]
+pub trait Merged {
+    fn label(&self) -> String;
+}
+
+impl Merged for u8 {
+    fn label(&self) -> String {
+        format!("u8:{}", self)
+    }
+}
+
 pub fn local_value(l: &inner::Local) -> u8 {
     l.0
 }
