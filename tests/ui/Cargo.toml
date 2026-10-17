@@ -19,7 +19,7 @@ publish = false
 # generated code uses `::newer_type` by default, which rustc cannot resolve).
 [dependencies]
 newer-type-test-facade = { path = "../facade" }
-announce-std = "0.1.1"
+announce-std = "0.2.0"
 
 [dev-dependencies]
 trybuild = "1"

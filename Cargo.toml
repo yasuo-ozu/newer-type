@@ -26,11 +26,11 @@ newer-type-macro = { path = "macro", version = "0.4.1" }
 # for proc-macro crates) would break `#![no_std]` users and targets without std,
 # so it stays off here; newer-type-macro runs on the host and turns it on for
 # itself (this needs cargo's resolver 2, the default of edition 2021).
-announce = { version = "0.1.1", default-features = false }
+announce = { version = "0.2.0", default-features = false }
 
 [dev-dependencies]
 # The std traits for the tests: `#[implement(::announce_std::fmt::Display)]`.
-announce-std = "0.1.1"
+announce-std = "0.2.0"
 
 [features]
 default = ["std"]
